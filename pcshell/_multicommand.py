@@ -1,7 +1,7 @@
-from ._compat import get_method_type
+import types
 from ._cmd_factories import ClickCmdShell
 
-from .types import HasKey
+from .utils import HasKey
 
 
 CUSTOM_COMMAND_PROPS = [
@@ -10,4 +10,4 @@ CUSTOM_COMMAND_PROPS = [
 
 def CustomCommandPropsParser(shell: ClickCmdShell, cmd: object, name: str) -> None:
     if HasKey('exit', cmd):
-        setattr(shell, 'do_%s' % name, get_method_type(lambda self, arg: True, shell))
+        setattr(shell, 'do_%s' % name, types.MethodType(lambda self, arg: True, shell))

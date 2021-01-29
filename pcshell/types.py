@@ -1,3 +1,7 @@
+"""
+Special types for use inside click decorators
+"""
+
 from click.types import Tuple
 
 

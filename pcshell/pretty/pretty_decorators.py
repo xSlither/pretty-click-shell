@@ -3,9 +3,10 @@ import inspect
 from click._unicodefun import _check_for_unicode_literals
 from click.decorators import _param_memo
 
+from .prettygroup import PrettyGroup
 from .prettycommand import PrettyCommand
 from .prettyargument import PrettyArgument
-
+    
 
 def argument(*param_decls, **attrs):
     """Attaches an argument to the command.  All positional arguments are
@@ -29,6 +30,15 @@ def argument(*param_decls, **attrs):
         return f
 
     return decorator
+
+
+def prettyGroup(name=None, **attrs):
+    """Creates a new :class:`PrettyGroup` with a function as callback.  This
+    works otherwise the same as :func:`command` just that the `cls`
+    parameter is set to :class:`PrettyGroup`.
+    """
+    attrs.setdefault("cls", PrettyGroup)
+    return prettyCommand(name, **attrs)
 
 
 def prettyCommand(name=None, cls=None, **attrs):

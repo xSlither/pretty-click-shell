@@ -2,10 +2,10 @@ from functools import update_wrapper
 
 import click
 
-from .shell import Shell
+from .shell import MultiCommandShell
 from ._repeat import BuildCommandString
 
-from .pretty import argument
+from .pretty import argument, prettyGroup, prettyCommand
 
 
 def add_options(*options):
@@ -20,11 +20,11 @@ def add_options(*options):
 
 
 def shell(name=None, **attrs):
-    """Instantiates a new Shell instance, using the default subclass. 
+    """Instantiates a new Shell instance, using the MultiCommandShell class as the default. 
     
-    Functions similar to @click.command(). Use this decorator on your top-level command for your click project
+    Functions similar to @click.command(). Use this decorator on your top-level command in your click project
     """
-    attrs.setdefault('cls', Shell)
+    attrs.setdefault('cls', MultiCommandShell)
     return click.command(name, isShell=True, **attrs)
 
 

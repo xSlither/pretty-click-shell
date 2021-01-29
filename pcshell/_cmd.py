@@ -13,7 +13,11 @@ from click._compat import raw_input as get_input
 from colorama import Fore, Style
 
 from . import globals as globs
+from . import utils
 from .chars import IGNORE_LINE
+
+
+DEFAULT_HISTORY_FILENAME = '.pcshell-history'
 
 
 class ClickCmd(Cmd, object):
@@ -42,10 +46,22 @@ class ClickCmd(Cmd, object):
         self.on_finished = on_finished
 
         # Define the history file path / create path directories if applicable
-        hist_file = hist_file or os.path.join(os.path.expanduser('~'), '.click-history')
+        hist_file = hist_file or os.path.join(os.path.expanduser('~'), DEFAULT_HISTORY_FILENAME)
         self.hist_file = os.path.abspath(hist_file)
         if not os.path.isdir(os.path.dirname(self.hist_file)):
             os.makedirs(os.path.dirname(self.hist_file))
+
+
+    def clear_history(self) -> bool:
+        try:
+            os.remove(self.hist_file)
+            readline.read_history_file(self.hist_file)
+            readline.set_history_length(1000)
+            readline.write_history_file(self.hist_file)
+            return True
+            
+        except Exception as e:
+            return False
 
 
     # ----------------------------------------------------------------------------------------------
@@ -84,8 +100,9 @@ class ClickCmd(Cmd, object):
             readline.parse_and_bind(to_parse)
 
         try:
-            # Start Shell Application as a new cmdloop()
-            if self.system_cmd: os.system(self.system_cmd)
+            # Call an optional system command before writing the intro
+            if self.system_cmd:
+                os.system(self.system_cmd)
 
             # Write an "intro" for the shell application
             if intro is not None:
@@ -94,7 +111,7 @@ class ClickCmd(Cmd, object):
                 click.echo(self.intro, file=self._stdout)
             stop = None
 
-            # Begin Loop
+            # Start Shell Application Loop
             while not stop:
                 if self.cmdqueue:
                     line = self.cmdqueue.pop(0)
@@ -164,7 +181,6 @@ class ClickCmd(Cmd, object):
     # ----------------------------------------------------------------------------------------------
 
     def get_prompt(self):
-        # Forwards Cmd input to click context
         if callable(self.prompt):
             kwargs = {}
             if hasattr(inspect, 'signature'):
@@ -178,10 +194,30 @@ class ClickCmd(Cmd, object):
         return False
 
     def default(self, line):
-        click.echo(self.nocommand % line, file=self._stdout)
+        self.VerifyCommand(line)
 
     def get_names(self):
         return dir(self)
+
+
+    def VerifyCommand(self, line):
+        commands = []
+        names = self.get_names()
+
+        for key in names:
+            if not '--' in key:
+                if 'do_' in key[0: 3]:
+                    if not 'hidden_{}'.format(key[3:]) in names:
+                        commands.append(key[3:])
+                    elif 'orig_{}'.format(key[3:]) in names:
+                        commands.append(key[3:])
+                        
+        suggest = utils.suggest(commands, line) if len(commands) else None
+        click.echo(
+            self.nocommand % line if not suggest else (self.nocommand % line) + '.\n\n\t{}Did you mean "{}{}{}"?{}'.format(
+                Style.BRIGHT + Fore.CYAN, Fore.YELLOW, suggest, Fore.CYAN, Style.RESET_ALL), 
+            file=self._stdout
+        )
 
 
     # ----------------------------------------------------------------------------------------------
@@ -205,7 +241,7 @@ class ClickCmd(Cmd, object):
                 do_fun = getattr(self, 'do_' + arg, None)
 
                 if do_fun is None:
-                    click.echo(self.nocommand % arg, file=self._stdout)
+                    self.VerifyCommand(arg)
                     return
 
                 doc = do_fun.__doc__

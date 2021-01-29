@@ -60,5 +60,21 @@ class PrettyGroup(click.Group):
         return decorator
 
 
+    def group(self, *args, **kwargs):
+        """A shortcut decorator for declaring and attaching a group to
+        the group.  This takes the same arguments as :func:`group` but
+        immediately registers the created command with this instance by
+        calling into :meth:`add_command`.
+        """
+        from .pretty_decorators import prettyGroup
+
+        def decorator(f):
+            cmd = prettyGroup(*args, **kwargs)(f)
+            self.add_command(cmd)
+            return cmd
+
+        return decorator
+
+
     def main(self, args=None, prog_name=None, complete_var=None, standalone_mode=True, **extra):
         return PrettyHelper.main(self, args=args, prog_name=prog_name, complete_var=complete_var, standalone_mode=standalone_mode, **extra)

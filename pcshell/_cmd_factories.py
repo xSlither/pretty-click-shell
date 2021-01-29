@@ -13,6 +13,7 @@ from click._bashcomplete import get_choices
 from colorama import Fore, Back, Style
 
 from ._cmd import ClickCmd
+from ._utils import HasKey
 
 logger = logging.getLogger(__name__)
 logger.addHandler(NullHandler())
@@ -140,6 +141,11 @@ class ClickCmdShell(ClickCmd):
         setattr(self, 'complete_%s' % name, types.MethodType(get_complete(cmd), self))
 
         setattr(self, 'hidden_%s' % name, cmd.hidden)
+
+        keys = dir(cmd)
+        if 'alias' in keys:
+            if not cmd.alias:
+                setattr(self, 'orig_%s' % name, True)
 
         if self.add_command_callback:
             self.add_command_callback(self, cmd, name)

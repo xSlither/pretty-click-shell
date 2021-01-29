@@ -1,3 +1,6 @@
+"""Global variables used internally within pretty-click-shell
+"""
+
 __IsShell__ = None
 
 __LAST_COMMAND__ = None
