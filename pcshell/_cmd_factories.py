@@ -10,10 +10,13 @@ import click
 from click._compat import get_text_stderr
 from click._bashcomplete import get_choices
 
-from colorama import Fore, Back, Style
+from colorama import Style
 
 from ._cmd import ClickCmd
 from ._utils import HasKey
+
+from . import _colors as colors
+
 
 logger = logging.getLogger(__name__)
 logger.addHandler(NullHandler())
@@ -48,12 +51,12 @@ def get_invoke(cmd: click.Command):
                 color = e.ctx.color
                 click.echo("\t{}\n{}".format(e.ctx.get_usage(), hint), file=file, color=color)
 
-            click.echo("\t{err_color}Error: {msg}{reset}".format(err_color=Fore.RED, reset=Style.RESET_ALL, msg=e.format_message()), file=file)    
+            click.echo("\t{err_color}Error: {msg}{reset}".format(err_color=colors.USAGE_ERROR_STYLE, reset=Style.RESET_ALL, msg=e.format_message()), file=file)    
 
         except click.ClickException as e:
             # Shows the standard click exception message
             file = get_text_stderr()
-            click.echo("\t{err_color}Error: {msg}{reset}".format(err_color=Fore.RED, reset=Style.RESET_ALL, msg=e.format_message()), file=file)
+            click.echo("\t{err_color}Error: {msg}{reset}".format(err_color=colors.CLICK_ERROR_STYLE, reset=Style.RESET_ALL, msg=e.format_message()), file=file)
 
         except click.Abort:
             # An EOF or KeyboardInterrupt was returned
@@ -71,11 +74,11 @@ def get_invoke(cmd: click.Command):
             formatter = click.HelpFormatter(4, 128, 128)
             formatter.indent()
 
-            formatter.write_text('{}An unexpected error has occurred{}'.format(Fore.YELLOW, Style.RESET_ALL))
+            formatter.write_text('{}An unexpected error has occurred{}'.format(colors.UNEXPECTED_ERROR_TEXT_STYLE, Style.RESET_ALL))
             formatter.write_paragraph()
 
-            with formatter.section('{fore}{back}{style}Python Stack Trace{reset}'.format(fore=Fore.WHITE, back=Back.RED, style=Style.BRIGHT, reset=Style.RESET_ALL)):
-                formatter.write(Style.DIM)
+            with formatter.section('{fore}{back}{style}Python Stack Trace{reset}'.format(fore=colors.PYTHON_ERROR_HEADER_FORE, back=colors.PYTHON_ERROR_HEADER_BACK, style=colors.PYTHON_ERROR_HEADER_STYLE, reset=Style.RESET_ALL)):
+                formatter.write(colors.PYTHON_STACKTRACE_STYLE)
                 formatter.write_text(''.join(traceback.format_exception(type(e), e, None)))
                 formatter.write(Style.RESET_ALL)
 
@@ -131,9 +134,9 @@ def get_complete(command):
 # An implementation of ClickCmd that will use the factory methods to assign the command methods
 class ClickCmdShell(ClickCmd):
 
-    def __init__(self, ctx=None, on_finished=None, hist_file=None, add_command_callback=None, system_cmd=None, *args, **kwargs):
+    def __init__(self, ctx=None, on_finished=None, hist_file=None, add_command_callback=None, *args, **kwargs):
         self.add_command_callback = add_command_callback
-        super(ClickCmdShell, self).__init__(ctx, on_finished, hist_file, system_cmd, *args, **kwargs)
+        super(ClickCmdShell, self).__init__(ctx, on_finished, hist_file, *args, **kwargs)
 
     def add_command(self, cmd, name):
         setattr(self, 'do_%s' % name, types.MethodType(get_invoke(cmd), self))

@@ -3,21 +3,28 @@ import inspect
 import os
 import sys
 
-import readline
+try: 
+    import readline
+except: pass
+
+try:
+    from prompt_toolkit.history import FileHistory
+    from prompt_toolkit.shortcuts import PromptSession
+except: pass
 
 from cmd import Cmd
 
 import click
 from click._compat import raw_input as get_input
 
-from colorama import Fore, Style
+from colorama import Style
 
 from . import globals as globs
+from . import _colors as colors
 from . import utils
 from .chars import IGNORE_LINE
 
-
-DEFAULT_HISTORY_FILENAME = '.pcshell-history'
+from ._completion import get_completer, BuildCompletionTree
 
 
 class ClickCmd(Cmd, object):
@@ -26,40 +33,53 @@ class ClickCmd(Cmd, object):
     # Cmd string overrides
     identchars = Cmd.identchars + '-'
     nohelp = "No help on %s"
-    nocommand = "\n\t{}Command not found: {}%s{}".format(Style.DIM, Fore.YELLOW, Style.RESET_ALL)
+    nocommand = "\n\t{}Command not found: {}%s{}".format(colors.COMMAND_NOT_FOUND_TEXT_STYLE, colors.COMMAND_NOT_FOUND_TEXT_FORE, Style.RESET_ALL)
 
-    def __init__(self, ctx: click.Context =None, on_finished=None, hist_file=None, 
-    system_cmd=None, *args, **kwargs):
+    def __init__(self, ctx: click.Context =None, 
+    on_finished=None, hist_file=None, before_start=None, readline=None, 
+    complete_while_typing=True, fuzzy_completion=True, mouse_support=True, *args, **kwargs):
         self._stdout = kwargs.get('stdout')
         super(ClickCmd, self).__init__(*args, **kwargs)
 
         # readline overrides
         self.old_completer = None
         self.old_delims = None
+        self.readline = readline
 
-        # A system command that will be excuted before loading up the shell. 
+        # Prompt Toolkit Settings
+        self.complete_while_typing = complete_while_typing
+        self.fuzzy_completion = fuzzy_completion
+        self.mouse_support = mouse_support
+
+        # A callback function that will be excuted before loading up the shell. 
         # By default this changes the color to 0a on a Windows machine
-        self.system_cmd = system_cmd
+        self.before_start = before_start
 
         # Save the click.Context and callback for when the shell completes
         self.ctx = ctx
         self.on_finished = on_finished
 
-        # Define the history file path / create path directories if applicable
-        hist_file = hist_file or os.path.join(os.path.expanduser('~'), DEFAULT_HISTORY_FILENAME)
+        # Define the history file
+        hist_file = hist_file or os.path.join(os.path.expanduser('~'), globs.HISTORY_FILENAME)
         self.hist_file = os.path.abspath(hist_file)
         if not os.path.isdir(os.path.dirname(self.hist_file)):
             os.makedirs(os.path.dirname(self.hist_file))
 
+        self.history = FileHistory(self.hist_file)
+        self.history.load_history_strings()
+
 
     def clear_history(self) -> bool:
         try:
-            os.remove(self.hist_file)
-            readline.read_history_file(self.hist_file)
-            readline.set_history_length(1000)
-            readline.write_history_file(self.hist_file)
+            if self.readline: 
+                readline.clear_history()
+            else:
+                if not len(self.prompter.history._loaded_strings): return True
+
+                os.remove(self.hist_file)
+                self.prompter.history._loaded_strings = []
             return True
-            
+                
         except Exception as e:
             return False
 
@@ -69,16 +89,18 @@ class ClickCmd(Cmd, object):
     # ----------------------------------------------------------------------------------------------
 
     def preloop(self):
-        # Read history file when cmdloop() begins
-        try: readline.read_history_file(self.hist_file)
-        except IOError: pass
+        if self.readline:
+            # Read history file when cmdloop() begins
+            try: readline.read_history_file(self.hist_file)
+            except IOError: pass
 
     def postloop(self):
-        # Write history before cmdloop() returns
-        try: 
-            readline.set_history_length(1000)
-            readline.write_history_file(self.hist_file)
-        except IOError: pass
+        if self.readline:
+            # Write history before cmdloop() returns
+            try: 
+                readline.set_history_length(1000)
+                readline.write_history_file(self.hist_file)
+            except IOError: pass
 
         # Invoke callback before shell closes
         if self.on_finished: self.on_finished(self.ctx)
@@ -88,28 +110,45 @@ class ClickCmd(Cmd, object):
         self.preloop()
 
         # Readline Handling
-        if self.completekey and readline:
-            self.old_completer = readline.get_completer()
-            self.old_delims = readline.get_completer_delims()
-            readline.set_completer(self.complete)
-            readline.set_completer_delims(' \n\t')
-            to_parse = self.completekey + ': complete'
-            if readline.__doc__ and 'libedit' in readline.__doc__:
-                # Special case for mac OSX
-                to_parse = 'bind ^I rl_complete'
-            readline.parse_and_bind(to_parse)
+        if self.readline:
+            if self.completekey and readline:
+                self.old_completer = readline.get_completer()
+                self.old_delims = readline.get_completer_delims()
+                readline.set_completer(self.complete)
+                readline.set_completer_delims(' \n\t')
+                to_parse = self.completekey + ': complete'
+                if readline.__doc__ and 'libedit' in readline.__doc__:
+                    # Mac OSX
+                    to_parse = 'bind ^I rl_complete'
+                readline.parse_and_bind(to_parse)
 
         try:
-            # Call an optional system command before writing the intro
-            if self.system_cmd:
-                os.system(self.system_cmd)
+            # Call an optional callback function before writing the intro and initializing/starting the shell
+            if self.before_start:
+                if callable(self.before_start): self.before_start()
 
-            # Write an "intro" for the shell application
+            # Write an intro for the shell application
             if intro is not None:
                 self.intro = intro
             if self.intro:
                 click.echo(self.intro, file=self._stdout)
             stop = None
+
+            if not self.readline:
+                # Initialize Completion Tree for Master Shell
+                if globs.__MASTER_SHELL__ == self.ctx.command.name:
+                    BuildCompletionTree(self.ctx)
+
+                # Initialize Prompter
+                self.prompter = PromptSession(
+                    self.get_prompt(),
+                    history=self.history,
+                    enable_history_search=not self.complete_while_typing,
+                    mouse_support=self.mouse_support,
+                    completer=get_completer(self.fuzzy_completion),
+                    complete_in_thread=self.complete_while_typing,
+                    complete_while_typing=self.complete_while_typing,
+                )
 
             # Start Shell Application Loop
             while not stop:
@@ -117,7 +156,10 @@ class ClickCmd(Cmd, object):
                     line = self.cmdqueue.pop(0)
                 else:
                     try:
-                        line = get_input(self.get_prompt())
+                        if self.readline:
+                            line = get_input(self.get_prompt())
+                        else:
+                            line = self.prompter.prompt()
                     except EOFError:
                         if not globs.__IS_REPEAT_EOF__:
                             # Exits the Shell Application when stdin stream ends
@@ -127,7 +169,8 @@ class ClickCmd(Cmd, object):
                             # Swap STDIN from Programmatic Input back to User Input
                             globs.__IS_REPEAT_EOF__ = False
                             sys.stdin = globs.__PREV_STDIN__
-                            print('\n' + IGNORE_LINE) # Prevent empty lines from being created from null input
+                            # Prevent empty lines from being created from null input
+                            print('\n' + IGNORE_LINE)
                             continue
 
                     except KeyboardInterrupt:
@@ -138,14 +181,17 @@ class ClickCmd(Cmd, object):
                                 continue
                         except: pass
 
-                        print('\n' + IGNORE_LINE)  # Prevent empty lines from being created from null input
+                        # Prevent empty lines from being created from null input
+                        if not self.readline: click.echo(IGNORE_LINE)
+                        else: print('\n' + IGNORE_LINE)
+
                         continue
 
                 # Safely handle calling command and pretty-displaying output / errors
-                if line != '':
+                if line.strip():
                     if globs.__IS_REPEAT__:
                         # If stream source is from the 'repeat' command, display the "visible" repeated command
-                        print(globs.__LAST_COMMAND_VISIBLE__)
+                        click.echo(globs.__LAST_COMMAND_VISIBLE__)
 
                     try:
                         line = self.precmd(line)
@@ -164,15 +210,17 @@ class ClickCmd(Cmd, object):
                             globs.__IS_REPEAT_EOF__ = True
                 else:
                     # Prevent empty lines from being created from null input
-                    print(IGNORE_LINE) 
+                    if not self.readline: click.echo(IGNORE_LINE)
+                    else: print(IGNORE_LINE)
                     continue
 
         finally:
             self.postloop()
             if self.completekey:
                 try:
-                    readline.set_completer(self.old_completer)
-                    readline.set_completer_delims(self.old_delims)
+                    if self.readline:
+                        readline.set_completer(self.old_completer)
+                        readline.set_completer_delims(self.old_delims)
                 except IOError: pass
 
 
@@ -214,8 +262,8 @@ class ClickCmd(Cmd, object):
                         
         suggest = utils.suggest(commands, line) if len(commands) else None
         click.echo(
-            self.nocommand % line if not suggest else (self.nocommand % line) + '.\n\n\t{}Did you mean "{}{}{}"?{}'.format(
-                Style.BRIGHT + Fore.CYAN, Fore.YELLOW, suggest, Fore.CYAN, Style.RESET_ALL), 
+            self.nocommand % line if not suggest else (self.nocommand % line) + '.\n\n\t{}{}Did you mean "{}{}{}"?{}'.format(
+                colors.SUGGEST_TEXT_STYLE, colors.SUGGEST_TEXT_COLOR, colors.SUGGEST_ITEMS_STYLE, suggest, colors.SUGGEST_TEXT_COLOR, Style.RESET_ALL), 
             file=self._stdout
         )
 

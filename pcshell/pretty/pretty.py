@@ -10,9 +10,10 @@ from click.core import (
     PacifyFlushWrapper
 )
 
-from colorama import Fore, Back, Style
+from colorama import Style
 
 from .. import globals as globs
+from .. import _colors as colors
 
 
 class PrettyHelper:
@@ -31,7 +32,7 @@ class PrettyHelper:
         """Writes the usage line into the formatter.
         """
         pieces = self.collect_usage_pieces(ctx)
-        formatter.write_usage(ctx.command_path, '{style}{fore}{txt}{reset}'.format(style=Style.BRIGHT, fore=Fore.GREEN, txt=" ".join(pieces), reset=Style.RESET_ALL))
+        formatter.write_usage(ctx.command_path, '{style}{fore}{txt}{reset}'.format(style=colors.HELP_USAGE_STYLE, fore=colors.HELP_USAGE_FORE, txt=" ".join(pieces), reset=Style.RESET_ALL))
 
     @staticmethod
     def format_help_text(self: Command, ctx: Context, formatter: HelpFormatter):
@@ -39,7 +40,7 @@ class PrettyHelper:
         if self.help:
             formatter.write_paragraph()
             with formatter.indentation():
-                help_text = '{fore}{help}{reset}'.format(fore=Style.DIM, help=self.help, reset=Style.RESET_ALL)
+                help_text = '{fore}{help}{reset}'.format(fore=colors.HELP_TEXT_FORE, help=self.help, reset=Style.RESET_ALL)
                 if self.deprecated:
                     help_text += DEPRECATED_HELP_NOTICE
                 formatter.write_text(help_text)
@@ -60,27 +61,27 @@ class PrettyHelper:
 
             if help_record:
                 if not isinstance(param, Argument):
-                    rv = '{style}{txt}{reset}'.format(style=Style.DIM, txt=help_record[1], reset=Style.RESET_ALL)
+                    rv = '{style}{txt}{reset}'.format(style=colors.HELP_OPTION_DESCRIPTION_STYLE, txt=help_record[1], reset=Style.RESET_ALL)
                     if rv is not None:
-                        name = '{style}{txt}{reset}'.format(txt='--' + param.name, style=Fore.YELLOW, reset=Style.RESET_ALL)
+                        name = '{style}{txt}{reset}'.format(txt='--' + param.name, style=colors.HELP_OPTION_NAME_STYLE, reset=Style.RESET_ALL)
                         opts.append((name, rv))
 
                 else:
-                    rv = '{style}{txt}{reset}'.format(style=Style.DIM, txt=help_record, reset=Style.RESET_ALL)
+                    rv = '{style}{txt}{reset}'.format(style=colors.HELP_ARGUMENT_DESCRIPTION_STYLE, txt=help_record, reset=Style.RESET_ALL)
                     if rv is not None:
                         name = '{style}{txt}{reset}: {class_color}{type}{arrow_color} ->{reset}'.format(
-                            txt=param.name, style=Fore.YELLOW+Style.BRIGHT, reset=Style.RESET_ALL,
-                            class_color=Fore.CYAN, arrow_color=Fore.RED, type=param.type.name
+                            txt=param.name, style=colors.HELP_ARGUMENT_NAME_STYLE, reset=Style.RESET_ALL,
+                            class_color=colors.HELP_ARGUMENT_CLASS_STYLE, arrow_color=colors.HELP_ARGUMENT_ARROW_STYLE, type=param.type.name
                         )
                         args.append((name, rv))
 
         if args:
-            with formatter.section('{fore}{back}{style}Arguments{reset}'.format(fore=Fore.WHITE, back=Back.RED, style=Style.BRIGHT, reset=Style.RESET_ALL)):
+            with formatter.section('{fore}{back}{style}Arguments{reset}'.format(fore=colors.HELP_ARGUMENT_HEADER_FORE, back=colors.HELP_ARGUMENT_HEADER_BACK, style=colors.HELP_ARGUMENT_HEADER_STYLE, reset=Style.RESET_ALL)):
                 formatter.write_dl(args)
                 formatter.write_paragraph()
 
         if opts:
-            with formatter.section('{fore}{back}{style}Options{reset}'.format(fore=Fore.WHITE, back=Back.MAGENTA, style=Style.BRIGHT, reset=Style.RESET_ALL)):
+            with formatter.section('{fore}{back}{style}Options{reset}'.format(fore=colors.HELP_OPTION_HEADER_FORE, back=colors.HELP_OPTION_HEADER_BACK, style=colors.HELP_OPTION_HEADER_STYLE, reset=Style.RESET_ALL)):
                 formatter.write_dl(opts)
 
         self.format_commands(ctx, formatter)
@@ -104,12 +105,12 @@ class PrettyHelper:
 
             rows = []
             for subcommand, cmd in commands:
-                help = '{style}{txt}{reset}'.format(txt=cmd.get_short_help_str(limit), style=Style.DIM, reset=Style.RESET_ALL)
-                rows.append(('{style}{txt}{reset}'.format(txt=subcommand, style=Fore.YELLOW, reset=Style.RESET_ALL), help))
+                help = '{style}{txt}{reset}'.format(txt=cmd.get_short_help_str(limit), style=colors.HELP_COMMAND_DESCRIPTION_STYLE, reset=Style.RESET_ALL)
+                rows.append(('{style}{txt}{reset}'.format(txt=subcommand, style=colors.HELP_COMMAND_NAME_STYLE, reset=Style.RESET_ALL), help))
 
             if rows:
                 formatter.write_paragraph()
-                with formatter.section('{fore}{back}{style}Commands{reset}'.format(fore=Fore.WHITE, back=Back.BLUE, style=Style.BRIGHT, reset=Style.RESET_ALL)):
+                with formatter.section('{fore}{back}{style}Commands{reset}'.format(fore=colors.HELP_COMMAND_HEADER_FORE, back=colors.HELP_COMMAND_HEADER_BACK, style=colors.HELP_COMMAND_HEADER_STYLE, reset=Style.RESET_ALL)):
                     formatter.write_dl(rows)
 
     @staticmethod

@@ -6,6 +6,9 @@ from click.decorators import _param_memo
 from .prettygroup import PrettyGroup
 from .prettycommand import PrettyCommand
 from .prettyargument import PrettyArgument
+from .prettyoption import PrettyOption
+
+from .. import utils
     
 
 def argument(*param_decls, **attrs):
@@ -25,8 +28,34 @@ def argument(*param_decls, **attrs):
 
         if "help" in arg_attrs:
             arg_attrs["help"] = inspect.cleandoc(arg_attrs["help"])
+            
         ArgumentClass = arg_attrs.pop("cls", PrettyArgument)
         _param_memo(f, ArgumentClass(param_decls, **arg_attrs))
+        return f
+
+    return decorator
+
+
+def option(*param_decls, **attrs):
+    """Attaches an option to the command.  All positional arguments are
+    passed as parameter declarations to :class:`PrettyOption`; all keyword
+    arguments are forwarded unchanged (except ``cls``).
+    This is equivalent to creating an :class:`PrettyOption` instance manually
+    and attaching it to the :attr:`Command.params` list.
+
+    :param cls: the option class to instantiate.  This defaults to
+                :class:`PrettyOption`.
+    """
+
+    def decorator(f):
+        # Copy attrs, so pre-defined parameters can re-use the same cls=
+        option_attrs = attrs.copy()
+
+        if "help" in option_attrs:
+            option_attrs["help"] = inspect.cleandoc(option_attrs["help"])
+
+        OptionClass = option_attrs.pop("cls", PrettyOption)
+        _param_memo(f, OptionClass(param_decls, **option_attrs))
         return f
 
     return decorator
@@ -66,6 +95,7 @@ def prettyCommand(name=None, cls=None, **attrs):
 
     def decorator(f):
         cmd = _make_command(f, name, attrs, cls)
+        if not utils.HasKey('help_option_names', cmd): cmd.help_option_names = ["--help"]
         cmd.__doc__ = f.__doc__
         return cmd
 

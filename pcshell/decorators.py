@@ -5,7 +5,7 @@ import click
 from .shell import MultiCommandShell
 from ._repeat import BuildCommandString
 
-from .pretty import argument, prettyGroup, prettyCommand
+from .pretty import argument, option, prettyGroup, prettyCommand
 
 
 def add_options(*options):

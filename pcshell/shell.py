@@ -1,6 +1,5 @@
 from typing import Callable
 
-import platform
 import sys
 from copy import deepcopy
 from io import StringIO
@@ -8,25 +7,40 @@ from io import StringIO
 import click
 from click.core import MultiCommand, _check_multicommand
 
-from colorama import Style, Fore
+from colorama import Style
 
 from . import globals as globs
+from . import _colors as colors
 from .pretty import PrettyGroup, PrettyCommand
 from .multicommand import CUSTOM_COMMAND_PROPS, CustomCommandPropsParser
 from .utils import HasKey
 from ._cmd_factories import ClickCmdShell
 
 
+
 class Shell(PrettyGroup):
     """A :class:`Click Group` implementation with an (optionally) attatched shell.
 
-    Otherwise functions as a PrettyGroup
+    Otherwise functions as a :class:`PrettyGroup`
+
+    Constructor Kwargs:
+    - :param:`isShell`: Attach a new shell instance?
+    - :param:`prompt`: Prompt Text
+    - :param:`intro`: Shell Intro Text
+    - :param:`hist_file`: Full Path & Filename to History File
+    - :param:`on_finished`: Callback function when shell closes
+    - :param:`add_command_callback`: Callback for extending command kwargs. See :func:`multicommand.CustomCommandPropsParser()`
+    - :param:`before_start`: os.system() command to execute prior to starting the shell
+    - :param:`readline`: If True, use GNU readline instead of any prompt_toolkit features
+    - :param:`complete_while_typing`: If True, prompt_toolkit suggestions will be live (on a separate thread)
+    - :param:`fuzzy_completion`: If True, use fuzzy completion for prompt_toolkit suggestions
+    - :param:`mouse_support`: If True, enables mouse support for prompt_toolkit
     """
 
     def __init__(self, isShell=False, prompt=None, intro=None, hist_file=None, 
     on_finished=None, add_command_callback: Callable[[ClickCmdShell, object, str], None] =None, 
-    system_cmd='color 0a' if platform.system() == 'Windows' else '', 
-    **attrs):
+    before_start=None,
+    readline=None, complete_while_typing=True, fuzzy_completion=True, mouse_support=True, **attrs):
         # Allows this class to be used as a subclass without a new shell instance attached
         self.isShell = isShell
 
@@ -34,8 +48,25 @@ class Shell(PrettyGroup):
             attrs['invoke_without_command'] = True
             super(Shell, self).__init__(**attrs)
 
+            if not globs.__MASTER_SHELL__:
+                globs.__MASTER_SHELL__ = self.name
+
+            def on_shell_closed(ctx):
+                if len(globs.__SHELL_PATH__):
+                    try: globs.__SHELL_PATH__.remove(self.name)
+                    except: pass
+                if on_finished and callable(on_finished): on_finished(ctx)
+
+            def on_shell_start():
+                if before_start and callable(before_start): before_start()
+                if not self.name == globs.__MASTER_SHELL__:
+                    globs.__SHELL_PATH__.append(self.name)
+
             # Create the shell
-            self.shell = ClickCmdShell(hist_file=hist_file, on_finished=on_finished, add_command_callback=add_command_callback, system_cmd=system_cmd)
+            self.shell = ClickCmdShell(hist_file=hist_file, on_finished=on_shell_closed, 
+                add_command_callback=add_command_callback, before_start=on_shell_start, readline=readline,
+                complete_while_typing=complete_while_typing, fuzzy_completion=fuzzy_completion, mouse_support=mouse_support)
+
             if prompt:
                 self.shell.prompt = prompt
             self.shell.intro = intro
@@ -71,6 +102,19 @@ class Shell(PrettyGroup):
             return MultiCommand.invoke(self, ctx)
 
 
+    def new_shell(self, cls=None, **kwargs):
+        """A shortcut decorator that instantiates a new Shell instance and attaches it to the existing Command
+        """
+        from .pretty import prettyGroup
+
+        def decorator(f):
+            cmd = prettyGroup(cls=Shell if not cls else cls, isShell=True, **kwargs)(f)
+            self.add_command(cmd)
+            return cmd
+
+        return decorator
+
+
 class MultiCommandShell(Shell):
     """ A :class:`Click Group` implementation with an (optionally) attached shell, that also:
 
@@ -79,7 +123,7 @@ class MultiCommandShell(Shell):
     - Implements pre-defined base shell commands
     - Implements all pretty formatting features
 
-    If not attached to a shell, functions as a PrettyGroup with the non-shell-related features listed above
+    If not attached to a shell, functions as a :class:`PrettyGroup` with the non-shell-related features listed above
     """
 
     def __init__(self, isShell=None, **attrs):
@@ -119,6 +163,20 @@ class MultiCommandShell(Shell):
 
         def decorator(f):
             cmd = prettyGroup(*args, **kwargs)(f)
+            cmd.alias = False
+            self.add_command(cmd)
+            return cmd
+
+        return decorator
+
+
+    def new_shell(self, cls=None, **kwargs):
+        """A shortcut decorator that instantiates a new Shell instance and attaches it to the existing Command
+        """
+        from .pretty import prettyGroup
+
+        def decorator(f):
+            cmd = prettyGroup(cls=MultiCommandShell if not cls else cls, isShell=True, **kwargs)(f)
             cmd.alias = False
             self.add_command(cmd)
             return cmd
@@ -212,8 +270,8 @@ class BaseShellCommands:
             result = shell.shell.clear_history()
             print()
             click.echo('\t{}{} {}{}{}'.format(
-                Style.DIM, 'History cleared' if result else 'Clear History',
-                Fore.GREEN if result else Fore.RED,
+                colors.SHELL_HISTORY_CLEARED_STYLE, 'History cleared' if result else 'Clear History',
+                colors.SHELL_HISTORY_CLEARED_TRUE if result else colors.SHELL_HISTORY_CLEARED_FALSE,
                 'successfully' if result else 'failed',
                 Style.RESET_ALL
             ))

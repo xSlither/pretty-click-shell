@@ -1,4 +1,6 @@
 import click
+import pcshell
+
 from pcshell import utils
 
 from colorama import Fore, Style
@@ -22,7 +24,7 @@ def _initFlags():
     for detail in details: ret.append(detail[0].lower())
     return ret
 
-SHELL_FLAGS = click.Choice(_initFlags())
+SHELL_FLAGS = pcshell.types.Choice(_initFlags())
 
 
 def print_all_settings():
