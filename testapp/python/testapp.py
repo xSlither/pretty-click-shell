@@ -46,9 +46,7 @@ __SHELL_INTRO__ = '\nPython Version: {pyVer}\nClick Version: {clVer}\nPrompt Too
 
 
 def ShellStart():
-    import platform
     if platform.system() == 'Windows':
-        import os
         os.system('color 0a')
 
 

@@ -24,7 +24,9 @@ from . import _colors as colors
 from . import utils
 from .chars import IGNORE_LINE
 
-from ._completion import get_completer, BuildCompletionTree
+try:
+    from ._completion import get_completer, BuildCompletionTree
+except: pass
 
 
 class ClickCmd(Cmd, object):
