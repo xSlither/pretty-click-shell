@@ -51,7 +51,7 @@ def ShellStart():
 
 
 #---------------------------------------------------------------------------------------------
-@pcshell.shell(prompt = 'testapp > ', intro = pcshell.chars.CLEAR_CONSOLE + __SHELL_INTRO__, 
+@pcshell.shell(prompt = 'testapp', intro = pcshell.chars.CLEAR_CONSOLE + __SHELL_INTRO__, 
 before_start=ShellStart, context_settings = CONTEXT_SETTINGS)
 def testapp():
     """The Test Shell Application"""
@@ -130,7 +130,7 @@ def print_someshell_version(ctx: click.Context, param, value):
     click.echo(__someshell_version__)
     ctx.exit()
 
-@testapp.new_shell(prompt = 'someshell > ', intro=pcshell.chars.IGNORE_LINE,
+@testapp.new_shell(prompt = 'someshell', intro=pcshell.chars.IGNORE_LINE,
 before_start=None, context_settings=CONTEXT_SETTINGS,
 hist_file=os.path.join(os.path.expanduser('~'), '.testapp-someshell-history'))
 @pcshell.option('--version', is_flag=True, callback=print_someshell_version, expose_value=False, is_eager=True, hidden=True)
@@ -188,6 +188,16 @@ def test(opt1, opt2):
     click.echo('Option 1 is: %s' % opt1)
     click.echo('Option 2 is: %s' % opt2)
     pass
+
+
+@someshell.group(context_settings=CONTEXT_SETTINGS)
+def group():
+    """A Command Group in the Sub-Shell"""
+
+
+@group.command(context_settings=CONTEXT_SETTINGS)
+def cmd():
+    """Some Sub-Command of the Sub-Shell"""
 
 #--------------------------------------------
 

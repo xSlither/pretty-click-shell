@@ -103,17 +103,19 @@ class ClickCompleter(Completer):
                                 )
 
                 elif obj['isGroup'] and not obj2:
-                    if deep_get(COMPLETION_TREE, words[0 + (l - 1)]) or (not ' ' in line):
-                        commands = [k for k, v in obj.items() if isinstance(obj[k], dict)]
-                        for key in commands:
-                            if key.startswith(word):
-                                h = html_escape(obj[key]['help'])
-                                yield Completion(
-                                    key,
-                                    start_position=-len(word),
-                                    display=HTML("<%s>%s</%s>" % (colors.COMPLETION_ROOT_COMMAND_NAME, key, colors.COMPLETION_ROOT_COMMAND_NAME)),
-                                    display_meta=HTML("<style %s><i>%s</i></style>" % (colors.COMPLETION_ROOT_COMMAND_DESCRIPTION, h))
-                                )
+                    root = deep_get(COMPLETION_TREE, words[0 + (l - 1)])
+                    if root or line.count(' ') == 0:
+                        if (root and line.count(' ') == 0) or not root:
+                            commands = [k for k, v in obj.items() if isinstance(obj[k], dict)]
+                            for key in commands:
+                                if key.startswith(word):
+                                    h = html_escape(obj[key]['help'])
+                                    yield Completion(
+                                        key,
+                                        start_position=-len(word),
+                                        display=HTML("<%s>%s</%s>" % (colors.COMPLETION_ROOT_COMMAND_NAME, key, colors.COMPLETION_ROOT_COMMAND_NAME)),
+                                        display_meta=HTML("<style %s><i>%s</i></style>" % (colors.COMPLETION_ROOT_COMMAND_DESCRIPTION, h))
+                                    )
 
 
                 if len(current_key):
@@ -308,7 +310,7 @@ def BuildCompletionTree(ctx: click.Context):
         commands = []
         try:
             for subcommand in command.list_commands(ctx):
-                cmd = command.get_command(ctx, subcommand)
+                cmd: click.Command = command.get_command(ctx, subcommand)
                 if cmd is None: continue
                 if cmd.hidden: continue
 
@@ -366,29 +368,43 @@ def BuildCompletionTree(ctx: click.Context):
 
         if len(parents):
             if not deep_get(COMPLETION_TREE, *parents):
-                deep_set(COMPLETION_TREE, { "isGroup": True }, *parents)
+                deep_set(COMPLETION_TREE, { 
+                    "isGroup": True, 
+                    "isRoot": False,
+                    "CommandTree": parents
+                }, *parents)
 
         keys = parents.copy()
         if not isinstance(cmd, click.Group):
             keys.append(cmd.name)
             deep_set(COMPLETION_TREE, {
                 "isGroup": False,
+                "CommandTree": parents,
+                "isShell": False,
+                "isRoot": False,
                 "options": opts,
                 "arguments": args,
                 "help": cmd.short_help or cmd.help
             }, *keys)
 
         elif not root:
+            from .shell import Shell
             keys.append(cmd.name)
             dic = deep_get(COMPLETION_TREE, *keys)
+            dic['isShell'] = bool(isinstance(cmd, Shell) and cmd.isShell)
             dic['options'] = opts
             dic['arguments'] = args
             dic['help'] = cmd.short_help or cmd.help
 
         elif root:
             COMPLETION_TREE['isGroup'] = True
+            COMPLETION_TREE['CommandTree'] = []
+            COMPLETION_TREE['isShell'] = True
+            COMPLETION_TREE['isRoot'] = True
+
             COMPLETION_TREE['options'] = opts
             COMPLETION_TREE['arguments'] = args
             COMPLETION_TREE['help'] = cmd.short_help or cmd.help
 
     build_tree(ctx, [], root=True)
+    # print(COMPLETION_TREE)

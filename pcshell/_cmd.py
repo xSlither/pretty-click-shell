@@ -10,6 +10,9 @@ except: pass
 try:
     from prompt_toolkit.history import FileHistory
     from prompt_toolkit.shortcuts import PromptSession
+    
+    from prompt_toolkit.lexers import PygmentsLexer
+    from pygments.lexer import Lexer
 except: pass
 
 from cmd import Cmd
@@ -142,14 +145,59 @@ class ClickCmd(Cmd, object):
                     BuildCompletionTree(self.ctx)
 
                 # Initialize Prompter
+                from ._lexer import ShellLexer
+                from prompt_toolkit.styles import Style
+
+                from pygments.styles import get_style_by_name
+                from prompt_toolkit.styles.pygments import style_from_pygments_cls
+                from prompt_toolkit.output.color_depth import ColorDepth
+
+                prompt_style = Style.from_dict({
+                    '': colors.PROMPT_DEFAULT_TEXT,
+
+                    'name': colors.PROMPT_NAME,
+                    'prompt': colors.PROMPT_SYMBOL,
+
+                    'pygments.text': colors.PROMPT_DEFAULT_TEXT,
+                    'pygments.name.help': colors.PYGMENTS_NAME_HELP,
+                    'pygments.name.exit': colors.PYGMENTS_NAME_EXIT,
+                    'pygments.name.symbol': colors.PYGMENTS_NAME_SYMBOL,
+
+                    'pygments.name.label': colors.PYGMENTS_NAME_SHELL,
+
+                    'pygments.name.invalidcommand': colors.PYGMENTS_NAME_INVALIDCOMMAND,
+                    'pygments.name.command': colors.PYGMENTS_NAME_COMMAND,
+                    'pygments.name.subcommand': colors.PYGMENTS_NAME_SUBCOMMAND,
+
+                    'pygments.name.tag': colors.PYGMENTS_OPTION,
+
+                    'pygments.operator': colors.PYGMENTS_OPERATOR,
+                    'pygments.keyword': colors.PYGMENTS_KEYWORD,
+
+                    'pygments.literal.number': colors.PYGMENTS_LITERAL_NUMBER,
+
+                    'pygments.literal.string': colors.PYGMENTS_LITERAL_STRING,
+                    'pygments.literal.string.symbol': colors.PYGMENTS_LITERAL_STRING_LITERAL
+                })
+
+                message = [
+                    ('class:name', self.get_prompt()),
+                    ('class:prompt', ' > '),
+                ]
+
                 self.prompter = PromptSession(
-                    self.get_prompt(),
+                    message,
+                    style=prompt_style,
+                    color_depth=ColorDepth.TRUE_COLOR,
+
                     history=self.history,
                     enable_history_search=not self.complete_while_typing,
                     mouse_support=self.mouse_support,
                     completer=get_completer(self.fuzzy_completion),
                     complete_in_thread=self.complete_while_typing,
                     complete_while_typing=self.complete_while_typing,
+                    lexer=PygmentsLexer(ShellLexer),
+                    
                 )
 
             # Start Shell Application Loop
