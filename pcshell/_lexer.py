@@ -12,9 +12,7 @@ from pygments.token import (
     Number,
     Generic,
     Comment,
-    Error,
-
-    _TokenType
+    Error
 )
 
 from . import globals as globs
@@ -36,8 +34,12 @@ def command_lexer(lexer, match):
     if ' ' in line: words = line.split(' ')
     else: words = [line]
 
+    if ' ' in true_line: original_words = true_line.rstrip().split(' ')
+    else: original_words = [true_line]
+
     word = words[len(words) - 1]
-    priorOption = words[len(words) - 2] if len(words) > 1 else None
+    lastword = words[len(words) - 2] if len(words) > 1 else None
+    priorOption = words[len(words) - 3] if len(words) > 2 else None
 
     current_key = []
     for i in range(0, len(words)):
@@ -45,27 +47,87 @@ def command_lexer(lexer, match):
 
         try:
             if deep_get(COMPLETION_TREE, *words[:len(words) - i]):
-                if len(words) > 2: current_key = words[:len(words) - (i - 1)]
+                if len(original_words) > 2: 
+                    current_key = words[:(len(words) - (i - 1)) + len(globs.__SHELL_PATH__)]
                 elif '--' in words: current_key = words[:len(words) - i] 
                 else:
                     current_key = words[:len(words) - (i - 1)]
-                    if deep_get(COMPLETION_TREE, *current_key):
-                        break
+                    if deep_get(COMPLETION_TREE, *current_key): break
 
             elif priorOption and '--' in priorOption:
                 current_key = words[:len(words) - (i + 1)]
-                if deep_get(COMPLETION_TREE, *current_key):
-                    break
+                if deep_get(COMPLETION_TREE, *current_key):  break
 
             else:
                 key = words[:len(words) - (i + 1)]
                 if deep_get(COMPLETION_TREE, *key):
                     current_key = key
                     break
-        except: break
+        except Exception as e: break
 
     obj = deep_get(COMPLETION_TREE, *current_key)
     obj2 = deep_get(COMPLETION_TREE, *words)
+
+
+    def get_parameter_token():
+        def get_option(name: str):
+            if len(obj['_options']):
+                try: return [x for x in obj['_options'] if x[0] == name][0][1]
+                except IndexError: pass
+            return None
+
+        def get_option_names():
+            expression = r'(?<=--)([a-zA-Z0-9]*)(?=\s)'
+            return re.findall(expression, line)    
+
+        if len(obj['_options']):
+            option = get_option(lastword)
+            if option:
+                if not (option.is_bool_flag or option.is_flag):
+                    values = []
+                    isChoice = False
+
+                    if option.type.name == 'choice': 
+                        values = [c for c in option.type.choices if c]
+                        isChoice = True
+                    elif option.choices and ('Choice' in str(type(option.choices))): 
+                        values = [c for c in option.choices.choices if c]
+                        isChoice = True
+
+                    # Verified Option Parameter
+                    if isChoice and word in values: return Name.Attribute
+                    elif isChoice: return Name.InvalidCommand
+                    else: Text
+
+        if len(obj['_arguments']):
+            nargs = len(words) - len(current_key)
+
+            def AnalyzeOptions():
+                option_names = get_option_names()
+                ret = 0
+                for oName in option_names:
+                    option = get_option('--%s' % oName)
+                    if option:
+                        if not (option.is_bool_flag or option.is_flag): ret += 2
+                return ret
+
+            nargs = nargs - AnalyzeOptions()
+            if nargs <= len(obj['_arguments']):
+                arg = obj['_arguments'][nargs - 1 if nargs > 0 else 0]
+
+                name = arg[0]
+                argument: PrettyArgument = arg[1]
+                values = arg[2]
+
+                isChoice = bool(argument.type.name == 'choice' or argument.choices)
+
+                # Verified Argument Parameter
+                if isChoice and word in values: return Name.Attribute
+                elif isChoice: return Name.InvalidCommand
+                else: Text
+
+        return Text
+
 
     if obj and isinstance(obj, dict):
         if obj['isGroup'] and not obj2:
@@ -73,31 +135,31 @@ def command_lexer(lexer, match):
             c = len([x for x in words if '--' in x])
             l -= c if c else 0
 
-            root = deep_get(COMPLETION_TREE, words[0 + (l - 1)])
+            root = deep_get(COMPLETION_TREE, *words[0 + (l - 1)])
             if root or line.count(' ') == 0:
                 if (root and line.count(' ') == 0) or not root:
-                    yield (match.start(), Text, line)
+                    yield (match.start(), Text, parsed_word) # Unverified shell root command
                     return
 
-            yield (match.start(), Name.InvalidCommand, parsed_word)
+            yield (match.start(), Name.InvalidCommand, parsed_word) # Invalid Group Command
         
         elif obj2:
             if obj2['isShell']:
-                yield (match.start(), Name.Label, parsed_word)
+                yield (match.start(), Name.Label, parsed_word) # Command is a Shell
             elif obj2['isGroup']:
-                yield (match.start(), Name.Command, parsed_word)
+                yield (match.start(), Name.Command, parsed_word) # Is a Command Group
             else:
                 if parsed_word == 'exit':
-                    yield (match.start(), Name.Exit, parsed_word)
+                    yield (match.start(), Name.Exit, parsed_word) # Is an Exit Command
                 else:
-                    yield (match.start(), Name.SubCommand, parsed_word)
+                    yield (match.start(), Name.SubCommand, parsed_word) # Is a verified Command
         else:
-            if not obj['isGroup']: yield (match.start(), Name.Text, parsed_word)
-            else: yield (match.start(), Name.InvalidCommand, parsed_word)
+            if not obj['isGroup']: yield (match.start(), get_parameter_token() if len(current_key) else Text, parsed_word) # Is an Argument/Parameter
+            else: yield (match.start(), Name.InvalidCommand, parsed_word) # Invalid Group Command
 
         return
 
-    yield (match.start(), Name.InvalidCommand, parsed_word)
+    yield (match.start(), Text, parsed_word) # Unverified sub-shell root command
 
 
 class ShellLexer(RegexLexer):

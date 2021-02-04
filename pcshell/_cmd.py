@@ -168,6 +168,8 @@ class ClickCmd(Cmd, object):
                     'pygments.name.command': colors.PYGMENTS_NAME_COMMAND,
                     'pygments.name.subcommand': colors.PYGMENTS_NAME_SUBCOMMAND,
 
+                    'pygments.name.attribute': colors.PYGMENTS_PARAMETER_CHOICE,
+
                     'pygments.name.tag': colors.PYGMENTS_OPTION,
 
                     'pygments.operator': colors.PYGMENTS_OPERATOR,

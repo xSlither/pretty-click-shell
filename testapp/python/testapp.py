@@ -196,8 +196,10 @@ def group():
 
 
 @group.command(context_settings=CONTEXT_SETTINGS)
-def cmd():
+@pcshell.argument('choice', type=pcshell.types.Choice(['blue', 'red'], display_tags=['ansiblue', 'ansired']))
+def cmd(choice):
     """Some Sub-Command of the Sub-Shell"""
+    click.echo('Argument was: "%s"' % choice)
 
 #--------------------------------------------
 
