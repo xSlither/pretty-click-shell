@@ -46,6 +46,7 @@ class ClickCompleter(Completer):
         word: str = document.get_word_before_cursor()
         line: str = document.current_line_before_cursor
 
+        original_words = line.rstrip().split(' ')
         line = ((' '.join(globs.__SHELL_PATH__) + ' ') if len(globs.__SHELL_PATH__) else '') + line
 
         words = line.rstrip().split(' ')
@@ -56,7 +57,7 @@ class ClickCompleter(Completer):
             current_key = []
             for i in range(0, len(words)):
                 if deep_get(COMPLETION_TREE, *words[:len(words) - i]):
-                    if len(words) > 2: current_key = words[:len(words) - (i - 1)]
+                    if len(original_words) > 2: current_key = words[:len(words) - (i - 1) + len(globs.__SHELL_PATH__)]
                     elif '--' in lastword: current_key = words[:len(words) - i]
                     else: 
                         current_key = words[:len(words) - (i - 1)]
