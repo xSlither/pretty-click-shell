@@ -1,5 +1,9 @@
 """
-Create shell applications using Click, with several out-of-the-box bells and whistles for a snazzier look and simple customization
+## pretty-click-shell
+
+Author: Chase M. Allen
+
+Description: Create shell applications using Click, with several out-of-the-box bells and whistles for a snazzier look and simple customization
 """
 
 # Click Exports for easy access

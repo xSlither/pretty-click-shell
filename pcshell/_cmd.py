@@ -12,7 +12,6 @@ try:
     from prompt_toolkit.shortcuts import PromptSession
     
     from prompt_toolkit.lexers import PygmentsLexer
-    from pygments.lexer import Lexer
 except: pass
 
 from cmd import Cmd

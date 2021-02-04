@@ -13,3 +13,5 @@ __PREV_STDIN__ = None
 
 __SHELL_PATH__ = []
 __MASTER_SHELL__ = None
+
+__CURRENT_LINE__ = ''

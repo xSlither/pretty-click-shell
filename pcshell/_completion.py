@@ -86,7 +86,7 @@ class ClickCompleter(Completer):
                     commands = [k for k, v in obj2.items() if isinstance(obj2[k], dict)]
                     for key in commands:
                         if key.startswith(word):
-                            h = html_escape(obj2[key]['help'])
+                            h = html_escape(obj2[key]['_help'])
                             if not current_key == globs.__SHELL_PATH__:
                                 yield Completion(
                                     key,
@@ -109,7 +109,7 @@ class ClickCompleter(Completer):
                             commands = [k for k, v in obj.items() if isinstance(obj[k], dict)]
                             for key in commands:
                                 if key.startswith(word):
-                                    h = html_escape(obj[key]['help'])
+                                    h = html_escape(obj[key]['_help'])
                                     yield Completion(
                                         key,
                                         start_position=-len(word),
@@ -121,8 +121,8 @@ class ClickCompleter(Completer):
                 if len(current_key):
 
                     def get_option(name: str):
-                        if len(obj['options']):
-                            try: return [x for x in obj['options'] if x[0] == name][0][1]
+                        if len(obj['_options']):
+                            try: return [x for x in obj['_options'] if x[0] == name][0][1]
                             except IndexError: pass
                         return None
 
@@ -152,7 +152,7 @@ class ClickCompleter(Completer):
 
                     # Recommend Option Choices
 
-                    if len(obj['options']):
+                    if len(obj['_options']):
                         option = get_option(lastword)
                         if option:
                             if not (option.is_bool_flag or option.is_flag):
@@ -189,8 +189,8 @@ class ClickCompleter(Completer):
 
                     # Recommend Options
 
-                    if len(obj['options']):
-                        for opt in obj['options']:
+                    if len(obj['_options']):
+                        for opt in obj['_options']:
                             name = opt[0]
                             option: click.Option = opt[1]
 
@@ -209,7 +209,7 @@ class ClickCompleter(Completer):
 
                     # Recommend Arguments
 
-                    if len(obj['arguments']):
+                    if len(obj['_arguments']):
                         nargs = len(words) - len(current_key)
 
                         def AnalyzeOptions():
@@ -222,8 +222,8 @@ class ClickCompleter(Completer):
                             return ret
 
                         nargs = nargs - AnalyzeOptions()
-                        if nargs < len(obj['arguments']):
-                            arg = obj['arguments'][nargs - 1 if nargs > 0 else 0]
+                        if nargs < len(obj['_arguments']):
+                            arg = obj['_arguments'][nargs - 1 if nargs > 0 else 0]
 
                             name = arg[0]
                             argument: PrettyArgument = arg[1]
@@ -382,9 +382,9 @@ def BuildCompletionTree(ctx: click.Context):
                 "CommandTree": parents,
                 "isShell": False,
                 "isRoot": False,
-                "options": opts,
-                "arguments": args,
-                "help": cmd.short_help or cmd.help
+                "_options": opts,
+                "_arguments": args,
+                "_help": cmd.short_help or cmd.help
             }, *keys)
 
         elif not root:
@@ -392,9 +392,9 @@ def BuildCompletionTree(ctx: click.Context):
             keys.append(cmd.name)
             dic = deep_get(COMPLETION_TREE, *keys)
             dic['isShell'] = bool(isinstance(cmd, Shell) and cmd.isShell)
-            dic['options'] = opts
-            dic['arguments'] = args
-            dic['help'] = cmd.short_help or cmd.help
+            dic['_options'] = opts
+            dic['_arguments'] = args
+            dic['_help'] = cmd.short_help or cmd.help
 
         elif root:
             COMPLETION_TREE['isGroup'] = True
@@ -402,9 +402,9 @@ def BuildCompletionTree(ctx: click.Context):
             COMPLETION_TREE['isShell'] = True
             COMPLETION_TREE['isRoot'] = True
 
-            COMPLETION_TREE['options'] = opts
-            COMPLETION_TREE['arguments'] = args
-            COMPLETION_TREE['help'] = cmd.short_help or cmd.help
+            COMPLETION_TREE['_options'] = opts
+            COMPLETION_TREE['_arguments'] = args
+            COMPLETION_TREE['_help'] = cmd.short_help or cmd.help
 
     build_tree(ctx, [], root=True)
     # print(COMPLETION_TREE)

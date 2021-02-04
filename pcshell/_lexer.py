@@ -11,178 +11,224 @@ from pygments.token import (
     String,
     Number,
     Generic,
-    Comment
+    Comment,
+    Error,
+
+    _TokenType
 )
 
+from . import globals as globs
 from ._completion import COMPLETION_TREE, deep_get
 
 
+
 def command_lexer(lexer, match):
-    line = ''.join(match.groups())
-    words = line.split(' ')
-    words.pop()
+    parsed_word = match.group(1)
+    
+    true_line = globs.__CURRENT_LINE__
+    if ' ' in true_line.rstrip():
+        begin_line = true_line[0: match.start()]
+        parsed_line = true_line[0: (len(begin_line) + len(true_line[match.start():].split(' ')[0]))]
+    else: parsed_line = true_line
 
+    line = (((' '.join(globs.__SHELL_PATH__) + ' ') if len(globs.__SHELL_PATH__) else '') + parsed_line).rstrip()
+
+    if ' ' in line: words = line.split(' ')
+    else: words = [line]
+
+    word = words[len(words) - 1]
     priorOption = words[len(words) - 2] if len(words) > 1 else None
-
-    command_token = Name.InvalidCommand
-    subcommand_token = Name.InvalidCommand
 
     current_key = []
     for i in range(0, len(words)):
-        if deep_get(COMPLETION_TREE, *words[:len(words) - i]):
-            if len(words) > 2: current_key = words[:len(words) - (i - 1)]
-            elif '--' in words: current_key = words[:len(words) - i]
-            else: 
-                current_key = words[:len(words) - (i - 1)]
-                if deep_get(COMPLETION_TREE, *current_key): break
+        if i < len(globs.__SHELL_PATH__): continue
 
-        elif priorOption and '--' in priorOption:
-            current_key = words[:len(words) - (i + 1)]
-            if deep_get(COMPLETION_TREE, *current_key): break
+        try:
+            if deep_get(COMPLETION_TREE, *words[:len(words) - i]):
+                if len(words) > 2: current_key = words[:len(words) - (i - 1)]
+                elif '--' in words: current_key = words[:len(words) - i] 
+                else:
+                    current_key = words[:len(words) - (i - 1)]
+                    if deep_get(COMPLETION_TREE, *current_key):
+                        break
 
-        else:
-            if deep_get(COMPLETION_TREE, *words[:len(words) - (i + 1)]):
+            elif priorOption and '--' in priorOption:
                 current_key = words[:len(words) - (i + 1)]
-                break
+                if deep_get(COMPLETION_TREE, *current_key):
+                    break
+
+            else:
+                key = words[:len(words) - (i + 1)]
+                if deep_get(COMPLETION_TREE, *key):
+                    current_key = key
+                    break
+        except: break
 
     obj = deep_get(COMPLETION_TREE, *current_key)
     obj2 = deep_get(COMPLETION_TREE, *words)
 
-    l = len(words)
-    c = len([x for x in commands if '--' in x])
-    l -= c if c else 0
+    if obj and isinstance(obj, dict):
+        if obj['isGroup'] and not obj2:
+            l = len(words)
+            c = len([x for x in words if '--' in x])
+            l -= c if c else 0
 
-    
-
-    if obj:
-        if obj2 and obj2['isGroup']:
-            commands = [k for k, v in obj2.items() if isinstance(obj2[k], dict)]
-            for key in commands:
-                if key.startswith(word):
-                    h = html_escape(obj2[key]['help'])
-                    if not current_key == globs.__SHELL_PATH__:
-                        yield Completion(
-                            key,
-                            start_position=-len(word),
-                            display=HTML("<%s>%s</%s>" % (colors.COMPLETION_COMMAND_NAME, key, colors.COMPLETION_COMMAND_NAME)),
-                            display_meta=HTML("<style %s><i>%s</i></style>" % (colors.COMPLETION_COMMAND_DESCRIPTION, h))
-                        )
-                    else:
-                        yield Completion(
-                            key,
-                            start_position=-len(word),
-                            display=HTML("<%s>%s</%s>" % (colors.COMPLETION_ROOT_COMMAND_NAME, key, colors.COMPLETION_ROOT_COMMAND_NAME)),
-                            display_meta=HTML("<style %s><i>%s</i></style>" % (colors.COMPLETION_ROOT_COMMAND_DESCRIPTION, h))
-                        )
-
-        elif obj['isGroup'] and not obj2:
             root = deep_get(COMPLETION_TREE, words[0 + (l - 1)])
             if root or line.count(' ') == 0:
                 if (root and line.count(' ') == 0) or not root:
-                    commands = [k for k, v in obj.items() if isinstance(obj[k], dict)]
-                    for key in commands:
-                        if key.startswith(word):
-                            h = html_escape(obj[key]['help'])
-                            yield Completion(
-                                key,
-                                start_position=-len(word),
-                                display=HTML("<%s>%s</%s>" % (colors.COMPLETION_ROOT_COMMAND_NAME, key, colors.COMPLETION_ROOT_COMMAND_NAME)),
-                                display_meta=HTML("<style %s><i>%s</i></style>" % (colors.COMPLETION_ROOT_COMMAND_DESCRIPTION, h))
-                            )
+                    yield (match.start(), Text, line)
+                    return
 
-
-
-def command_callback(lexer, match):
-
-    def find_command(keys):
-        cmd = deep_get(COMPLETION_TREE, *keys)
-        return cmd if cmd else None
-
-    command = match.group(1)
-    has_subcommand = len(match.groups()) > 2
-
-    full_command_str = ''.join(match.groups())
-    commands = full_command_str.split(' ')
-    commands.pop()
-
-    cmd = find_command(commands)
-
-    priorOption = commands[len(commands) - 2] if len(commands) > 1 else None
-
-    command_token = Name.InvalidCommand
-    subcommand_token = Name.InvalidCommand
-
-    if len(match.groups()) <= 4:
-        if cmd:
-            command_token = Text
-
-            validate = bool(len(commands))
-            if not validate: 
-                cmd = find_command(['%s' % match.string])
-                if cmd: validate = True
+            yield (match.start(), Name.InvalidCommand, parsed_word)
+        
+        elif obj2:
+            if obj2['isShell']:
+                yield (match.start(), Name.Label, parsed_word)
+            elif obj2['isGroup']:
+                yield (match.start(), Name.Command, parsed_word)
             else:
-                if len(match.groups()) >= 4:
-                    print(match)
+                if parsed_word == 'exit':
+                    yield (match.start(), Name.Exit, parsed_word)
+                else:
+                    yield (match.start(), Name.SubCommand, parsed_word)
+        else:
+            if not obj['isGroup']: yield (match.start(), Name.Text, parsed_word)
+            else: yield (match.start(), Name.InvalidCommand, parsed_word)
 
-            if validate:
-                if (not cmd['isRoot'] and cmd['isShell']): command_token = Name.Label
-                else: command_token = Name.Command
+        return
 
-                if has_subcommand:
-                    try:
-                        super_command = deep_get(COMPLETION_TREE, *cmd['CommandTree'])
-                        if super_command: subcommand_token = Name.SubCommand
-                        else: subcommand_token = Name.Symbol
-                    except: subcommand_token = Name.InvalidCommand
+    yield (match.start(), Name.InvalidCommand, parsed_word)
 
-
-        yield (match.start(1), command_token, command)
-        try: yield (match.start(2), Text, match.group(2))
-        except: pass
-
-        if has_subcommand:
-            yield (match.start(3), subcommand_token, match.group(3))
-            try: yield (match.start(4), Text, match.group(4))
-            except: pass
-
-
-
-_identifier = r"[a-zA-Z_][a-zA-Z0-9_\-]*"
-_unquoted_string = "([a-zA-Z0-9{}]+)".format(re.escape(r"-_/#@£$€%*+~|<>?."))
-_command = r"(:?[a-zA-Z_][a-zA-Z0-9_\-]*)"
 
 class ShellLexer(RegexLexer):
     name = "Pretty Shell Lexer"
     flags = re.IGNORECASE
 
+    def get_tokens_unprocessed(self, text, stack=('root',)):
+        globs.__CURRENT_LINE__ = text
+        return super(ShellLexer, self).get_tokens_unprocessed(text, stack)
+
     tokens = {
         'root': [
-            # (r"^SELECT\s", Name.Command, str("query")),
+            # SQL Queries
+            (r"^SELECT\s", Name.Command, str("query")),
 
-            # (r"\s+", Text),
-
+            # Shell Commands
             (r'^(\?|help)\s*$', Name.Help),
             (r'^(q|quit|exit)\s*$', Name.Exit),
             (r'^(cls|clear)\s*$', Name.Help),
 
-            (r"(True|False|true|false)", Keyword),
+            # Boolean
+            (r"(True|False|true|false)|((?<=\s)y|n(?=\s|$))", Keyword),
 
+            # Symbols / Integers
             (r"\-?[0-9]+", Number.Integer),
-
-            # (r"(" + _identifier + r")(\s*=\s*)", bygroups(Name.Key, Operator)),
+            (r"(\||\&|\$|\@|\%|\#|\!|\^|\*|\(|\)|\{|\}|\[|\])", Number.Operator),
 
             # Commands
-            # (r"^" + _command + r"(\s+)" + _command + r"(\s+|$)", command_callback),
-            # (r"^" + _command + r"(\s+|$)", command_callback),
-            (r"(?<=^)*(((?<=\s)|^)(:?[a-zA-Z_][a-zA-Z0-9_\-]*)(\s+))", command_lexer),
+            (r"(?<=^)*(((?<=\s)|^)(:?[a-zA-Z_][a-zA-Z0-9_\-]*)($|\s+))", command_lexer),
 
             # Options
+            (r"--(?<=\s--)help+(?=\s|$)", Name.Help),
+            (r"-(?<=\s-)h+(?=\s|$)", Name.Help),
             (r"--(?<=\s--)[a-zA-Z0-9]+(?=\s|$)", Name.Tag),
 
-            # (r"(" + _identifier + r")(\s*)", Name.Symbol),
-
+            # Strings
             (r"'(''|[^'])*'", String.Single),
             (r'"(""|[^"])*"', String.Symbol),
+            (r"[;:()\[\],\.]", Punctuation),
+        ],
+        str("query"): [
+            (r"\s+", Text),
+            (
+                r"(ABORT|ABS|ABSOLUTE|ACCESS|ADA|ADD|ADMIN|AFTER|AGGREGATE|"
+                r"ALIAS|ALL|ALLOCATE|ALTER|ANALYSE|ANALYZE|AND|ANY|ARE|AS|"
+                r"ASC|ASENSITIVE|ASSERTION|ASSIGNMENT|ASYMMETRIC|AT|ATOMIC|"
+                r"AUTHORIZATION|AVG|BACKWARD|BEFORE|BEGIN|BETWEEN|BITVAR|"
+                r"BIT_LENGTH|BOTH|BREADTH|BY|C|CACHE|CALL|CALLED|CARDINALITY|"
+                r"CASCADE|CASCADED|CASE|CAST|CATALOG|CATALOG_NAME|CHAIN|"
+                r"CHARACTERISTICS|CHARACTER_LENGTH|CHARACTER_SET_CATALOG|"
+                r"CHARACTER_SET_NAME|CHARACTER_SET_SCHEMA|CHAR_LENGTH|CHECK|"
+                r"CHECKED|CHECKPOINT|CLASS|CLASS_ORIGIN|CLOB|CLOSE|CLUSTER|"
+                r"COALSECE|COBOL|COLLATE|COLLATION|COLLATION_CATALOG|"
+                r"COLLATION_NAME|COLLATION_SCHEMA|COLUMN|COLUMN_NAME|"
+                r"COMMAND_FUNCTION|COMMAND_FUNCTION_CODE|COMMENT|COMMIT|"
+                r"COMMITTED|COMPLETION|CONDITION_NUMBER|CONNECT|CONNECTION|"
+                r"CONNECTION_NAME|CONSTRAINT|CONSTRAINTS|CONSTRAINT_CATALOG|"
+                r"CONSTRAINT_NAME|CONSTRAINT_SCHEMA|CONSTRUCTOR|CONTAINS|"
+                r"CONTINUE|CONVERSION|CONVERT|COPY|CORRESPONTING|COUNT|"
+                r"CREATE|CREATEDB|CREATEUSER|CROSS|CUBE|CURRENT|CURRENT_DATE|"
+                r"CURRENT_PATH|CURRENT_ROLE|CURRENT_TIME|CURRENT_TIMESTAMP|"
+                r"CURRENT_USER|CURSOR|CURSOR_NAME|CYCLE|DATA|DATABASE|"
+                r"DATETIME_INTERVAL_CODE|DATETIME_INTERVAL_PRECISION|DAY|"
+                r"DEALLOCATE|DECLARE|DEFAULT|DEFAULTS|DEFERRABLE|DEFERRED|"
+                r"DEFINED|DEFINER|DELETE|DELIMITER|DELIMITERS|DEREF|DESC|"
+                r"DESCRIBE|DESCRIPTOR|DESTROY|DESTRUCTOR|DETERMINISTIC|"
+                r"DIAGNOSTICS|DICTIONARY|DISCONNECT|DISPATCH|DISTINCT|DO|"
+                r"DOMAIN|DROP|DYNAMIC|DYNAMIC_FUNCTION|DYNAMIC_FUNCTION_CODE|"
+                r"EACH|ELSE|ENCODING|ENCRYPTED|END|END-EXEC|EQUALS|ESCAPE|EVERY|"
+                r"EXCEPT|ESCEPTION|EXCLUDING|EXCLUSIVE|EXEC|EXECUTE|EXISTING|"
+                r"EXISTS|EXPLAIN|EXTERNAL|EXTRACT|FALSE|FETCH|FINAL|FIRST|FOR|"
+                r"FORCE|FOREIGN|FORTRAN|FORWARD|FOUND|FREE|FREEZE|FROM|FULL|"
+                r"FUNCTION|G|GENERAL|GENERATED|GET|GLOBAL|GO|GOTO|GRANT|GRANTED|"
+                r"GROUP|GROUPING|HANDLER|HAVING|HIERARCHY|HOLD|HOST|IDENTITY|"
+                r"IGNORE|ILIKE|IMMEDIATE|IMMUTABLE|IMPLEMENTATION|IMPLICIT|IN|"
+                r"INCLUDING|INCREMENT|INDEX|INDITCATOR|INFIX|INHERITS|INITIALIZE|"
+                r"INITIALLY|INNER|INOUT|INPUT|INSENSITIVE|INSERT|INSTANTIABLE|"
+                r"INSTEAD|INTERSECT|INTO|INVOKER|IS|ISNULL|ISOLATION|ITERATE|JOIN|"
+                r"KEY|KEY_MEMBER|KEY_TYPE|LANCOMPILER|LANGUAGE|LARGE|LAST|"
+                r"LATERAL|LEADING|LEFT|LENGTH|LESS|LEVEL|LIKE|LIMIT|LISTEN|LOAD|"
+                r"LOCAL|LOCALTIME|LOCALTIMESTAMP|LOCATION|LOCATOR|LOCK|LOWER|"
+                r"MAP|MATCH|MAX|MAXVALUE|MESSAGE_LENGTH|MESSAGE_OCTET_LENGTH|"
+                r"MESSAGE_TEXT|METHOD|MIN|MINUTE|MINVALUE|MOD|MODE|MODIFIES|"
+                r"MODIFY|MONTH|MORE|MOVE|MUMPS|NAMES|NATIONAL|NATURAL|NCHAR|"
+                r"NCLOB|NEW|NEXT|NO|NOCREATEDB|NOCREATEUSER|NONE|NOT|NOTHING|"
+                r"NOTIFY|NOTNULL|NULL|NULLABLE|NULLIF|OBJECT|OCTET_LENGTH|OF|OFF|"
+                r"OFFSET|OIDS|OLD|ON|ONLY|OPEN|OPERATION|OPERATOR|OPTION|OPTIONS|"
+                r"OR|ORDER|ORDINALITY|OUT|OUTER|OUTPUT|OVERLAPS|OVERLAY|OVERRIDING|"
+                r"OWNER|PAD|PARAMETER|PARAMETERS|PARAMETER_MODE|PARAMATER_NAME|"
+                r"PARAMATER_ORDINAL_POSITION|PARAMETER_SPECIFIC_CATALOG|"
+                r"PARAMETER_SPECIFIC_NAME|PARAMATER_SPECIFIC_SCHEMA|PARTIAL|"
+                r"PASCAL|PENDANT|PLACING|PLI|POSITION|POSTFIX|PRECISION|PREFIX|"
+                r"PREORDER|PREPARE|PRESERVE|PRIMARY|PRIOR|PRIVILEGES|PROCEDURAL|"
+                r"PROCEDURE|PUBLIC|READ|READS|RECHECK|RECURSIVE|REF|REFERENCES|"
+                r"REFERENCING|REINDEX|RELATIVE|RENAME|REPEATABLE|REPLACE|RESET|"
+                r"RESTART|RESTRICT|RESULT|RETURN|RETURNED_LENGTH|"
+                r"RETURNED_OCTET_LENGTH|RETURNED_SQLSTATE|RETURNS|REVOKE|RIGHT|"
+                r"ROLE|ROLLBACK|ROLLUP|ROUTINE|ROUTINE_CATALOG|ROUTINE_NAME|"
+                r"ROUTINE_SCHEMA|ROW|ROWS|ROW_COUNT|RULE|SAVE_POINT|SCALE|SCHEMA|"
+                r"SCHEMA_NAME|SCOPE|SCROLL|SEARCH|SECOND|SECURITY|SELECT|SELF|"
+                r"SENSITIVE|SERIALIZABLE|SERVER_NAME|SESSION|SESSION_USER|SET|"
+                r"SETOF|SETS|SHARE|SHOW|SIMILAR|SIMPLE|SIZE|SOME|SOURCE|SPACE|"
+                r"SPECIFIC|SPECIFICTYPE|SPECIFIC_NAME|SQL|SQLCODE|SQLERROR|"
+                r"SQLEXCEPTION|SQLSTATE|SQLWARNINIG|STABLE|START|STATE|STATEMENT|"
+                r"STATIC|STATISTICS|STDIN|STDOUT|STORAGE|STRICT|STRUCTURE|STYPE|"
+                r"SUBCLASS_ORIGIN|SUBLIST|SUBSTRING|SUM|SYMMETRIC|SYSID|SYSTEM|"
+                r"SYSTEM_USER|TABLE|TABLE_NAME| TEMP|TEMPLATE|TEMPORARY|TERMINATE|"
+                r"THAN|THEN|TIMESTAMP|TIMEZONE_HOUR|TIMEZONE_MINUTE|TO|TOAST|"
+                r"TRAILING|TRANSATION|TRANSACTIONS_COMMITTED|"
+                r"TRANSACTIONS_ROLLED_BACK|TRANSATION_ACTIVE|TRANSFORM|"
+                r"TRANSFORMS|TRANSLATE|TRANSLATION|TREAT|TRIGGER|TRIGGER_CATALOG|"
+                r"TRIGGER_NAME|TRIGGER_SCHEMA|TRIM|TRUE|TRUNCATE|TRUSTED|TYPE|"
+                r"UNCOMMITTED|UNDER|UNENCRYPTED|UNION|UNIQUE|UNKNOWN|UNLISTEN|"
+                r"UNNAMED|UNNEST|UNTIL|UPDATE|UPPER|USAGE|USER|"
+                r"USER_DEFINED_TYPE_CATALOG|USER_DEFINED_TYPE_NAME|"
+                r"USER_DEFINED_TYPE_SCHEMA|USING|VACUUM|VALID|VALIDATOR|VALUES|"
+                r"VARIABLE|VERBOSE|VERSION|VIEW|VOLATILE|WHEN|WHENEVER|WHERE|"
+                r"WITH|WITHOUT|WORK|WRITE|YEAR|ZONE)\b",
+                Keyword,
+            ),
+            (
+                r"(ARRAY|BIGINT|BINARY|BIT|BLOB|BOOLEAN|CHAR|CHARACTER|DATE|"
+                r"DEC|DECIMAL|FLOAT|INT|INTEGER|INTERVAL|NUMBER|NUMERIC|REAL|"
+                r"SERIAL|SMALLINT|VARCHAR|VARYING|INT8|SERIAL8|TEXT)\b",
+                Name.Builtin,
+            ),
+            (r"[+*/<>=~!@#%^&|`?-]", Operator),
+            (r"[0-9]+", Number.Integer),
+            (r"'(''|[^'])*'", String.Single),
+            (r'"(""|[^"])*"', String.Symbol),
+            (r"[a-zA-Z_][a-zA-Z0-9_]*", Name),
             (r"[;:()\[\],\.]", Punctuation),
         ],
     }
