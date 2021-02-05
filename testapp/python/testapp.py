@@ -1,5 +1,7 @@
 #  ANCHOR References
 
+from typing import List
+
 import os
 import sys # REQUIRED
 import platform
@@ -124,6 +126,12 @@ def __disable__(singleflag, flag):
 def api():
     """Commands for invoking various API endpoints"""
 
+@testapp.group(cls=pcshell.MultiCommandShell, context_settings=CONTEXT_SETTINGS)
+def multi():
+    """Some Test commands w/ Aliases"""
+
+
+# Sub Shell - SomeShell
 
 __someshell_version__ = '1.0.0.5'
 
@@ -165,6 +173,23 @@ def test2(date, dev):
     """Some Other API Command"""
     if IsShell: click.echo('Effective Date was "{}", and DEV Mode = "{}"'.format(date, dev))
     return { 'date': date, 'devMode': dev }
+
+#--------------------------------------------
+
+
+#--------------------------------------------
+#  ANCHOR Command Tree | multi -> x
+#--------------------------------------------
+
+tuple_test_choice = pcshell.types.Choice(['choice1', 'choice2'], display_tags=['style fg=#d7ff00'])
+
+@multi.command(['tup', 'tuple'], context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
+@pcshell.option('--t', default=[])
+def test_tuple(t):
+    """Test Tuple Completion"""
+    if IsShell:
+        click.echo('Provided Parameter: %s' % str(t))
+    return t
 
 #--------------------------------------------
 

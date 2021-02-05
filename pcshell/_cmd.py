@@ -26,7 +26,7 @@ from colorama import Style
 from . import globals as globs
 from . import _colors as colors
 from . import utils
-from .chars import IGNORE_LINE
+from .chars import IGNORE_LINE, PROMPT_SYMBOL
 
 try:
     from ._completion import get_completer, BuildCompletionTree
@@ -49,7 +49,8 @@ class ClickCmd(Cmd, object):
         readline=None, 
         complete_while_typing=True, 
         fuzzy_completion=True, 
-        mouse_support=True, 
+        mouse_support=True,
+        lexer=True,
     *args, **kwargs):
         self._stdout = kwargs.get('stdout')
         super(ClickCmd, self).__init__(*args, **kwargs)
@@ -63,6 +64,7 @@ class ClickCmd(Cmd, object):
         self.complete_while_typing = complete_while_typing
         self.fuzzy_completion = fuzzy_completion
         self.mouse_support = mouse_support
+        self.lexer = lexer
         self._pipe_input = create_pipe_input() if not self.readline else None
 
         # A callback function that will be excuted before loading up the shell. 
@@ -154,52 +156,20 @@ class ClickCmd(Cmd, object):
                     BuildCompletionTree(self.ctx)
 
                 # Initialize Prompter
-                from ._lexer import ShellLexer
-                from prompt_toolkit.styles import Style
-
-                from pygments.styles import get_style_by_name
-                from prompt_toolkit.styles.pygments import style_from_pygments_cls
+                try:
+                    from ._lexer import ShellLexer
+                except: pass
                 from prompt_toolkit.output.color_depth import ColorDepth
-
-                prompt_style = Style.from_dict({
-                    '': colors.PROMPT_DEFAULT_TEXT,
-
-                    'name': colors.PROMPT_NAME,
-                    'prompt': colors.PROMPT_SYMBOL,
-
-                    'pygments.text': colors.PROMPT_DEFAULT_TEXT,
-                    'pygments.name.help': colors.PYGMENTS_NAME_HELP,
-                    'pygments.name.exit': colors.PYGMENTS_NAME_EXIT,
-                    'pygments.name.symbol': colors.PYGMENTS_NAME_SYMBOL,
-
-                    'pygments.name.label': colors.PYGMENTS_NAME_SHELL,
-
-                    'pygments.name.invalidcommand': colors.PYGMENTS_NAME_INVALIDCOMMAND,
-                    'pygments.name.command': colors.PYGMENTS_NAME_COMMAND,
-                    'pygments.name.subcommand': colors.PYGMENTS_NAME_SUBCOMMAND,
-
-                    'pygments.name.attribute': colors.PYGMENTS_PARAMETER_CHOICE,
-
-                    'pygments.name.tag': colors.PYGMENTS_OPTION,
-
-                    'pygments.operator': colors.PYGMENTS_OPERATOR,
-                    'pygments.keyword': colors.PYGMENTS_KEYWORD,
-
-                    'pygments.literal.number': colors.PYGMENTS_LITERAL_NUMBER,
-
-                    'pygments.literal.string': colors.PYGMENTS_LITERAL_STRING,
-                    'pygments.literal.string.symbol': colors.PYGMENTS_LITERAL_STRING_LITERAL
-                })
 
                 message = [
                     ('class:name', self.get_prompt()),
-                    ('class:prompt', ' > '),
+                    ('class:prompt', PROMPT_SYMBOL),
                 ]
 
                 self.prompter = PromptSession(
                     message,
 
-                    style=prompt_style,
+                    style=colors.prompt_style,
                     color_depth=ColorDepth.TRUE_COLOR,
 
                     history=self.history,
@@ -208,13 +178,13 @@ class ClickCmd(Cmd, object):
                     completer=get_completer(self.fuzzy_completion),
                     complete_in_thread=self.complete_while_typing,
                     complete_while_typing=self.complete_while_typing,
-                    lexer=PygmentsLexer(ShellLexer),
+                    lexer=PygmentsLexer(ShellLexer) if self.lexer else None
                 )
 
                 self.piped_prompter = PromptSession(
                     message,
 
-                    style=prompt_style,
+                    style=colors.prompt_style,
                     color_depth=ColorDepth.TRUE_COLOR,
 
                     input=self._pipe_input,
@@ -222,7 +192,7 @@ class ClickCmd(Cmd, object):
 
                     is_password=True,
 
-                    lexer=PygmentsLexer(ShellLexer)
+                    lexer=PygmentsLexer(ShellLexer) if self.lexer else None
                 )
 
             # Start Shell Application Loop
@@ -232,7 +202,7 @@ class ClickCmd(Cmd, object):
                 else:
                     try:
                         if self.readline:
-                            line = get_input(self.get_prompt() + ' > ')
+                            line = get_input(self.get_prompt() + PROMPT_SYMBOL)
                         else:
                             if not globs.__IS_REPEAT_EOF__:
                                 line = self.prompter.prompt()

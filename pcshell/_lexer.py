@@ -203,13 +203,14 @@ class ShellLexer(RegexLexer):
             (r"\-?[0-9]+", Number.Integer),
             (r"(\||\&|\$|\@|\%|\#|\!|\^|\*|\(|\)|\{|\}|\[|\])", Number.Operator),
 
-            # Commands
-            (r"(?<=^)*(((?<=\s)|^)(:?[a-zA-Z_][a-zA-Z0-9_\-]*)($|\s+))", command_lexer),
-
             # Options
             (r"--(?<=\s--)help+(?=\s|$)", Name.Help),
             (r"-(?<=\s-)h+(?=\s|$)", Name.Help),
             (r"--(?<=\s--)[a-zA-Z0-9]+(?=\s|$)", Name.Tag),
+
+            # Commands
+            # (r"(?<=^)*(((?<=\s)|^)(:?[a-zA-Z0-9_\-][a-zA-Z0-9_\-]*)($|\s+))", command_lexer),
+            (r"(?<=^)*(((?<=\s)|^)(?:\-\-|(\w*[a-zA-Z0-9_\-][a-zA-Z0-9_\-]*)($|\s+)))", command_lexer),
 
             # Strings
             (r"'(''|[^'])*'", String.Single),

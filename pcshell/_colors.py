@@ -106,3 +106,40 @@ PYGMENTS_LITERAL_STRING = '#8a380f'
 PYGMENTS_LITERAL_STRING_LITERAL = '#1fad91'
 
 PYGMENTS_PARAMETER_CHOICE = '#3385ff'
+
+
+# Shell Prompt Style
+
+try:
+    from prompt_toolkit.styles import Style
+
+    prompt_style = Style.from_dict({
+        '': PROMPT_DEFAULT_TEXT,
+
+        'name': PROMPT_NAME,
+        'prompt': PROMPT_SYMBOL,
+
+        'pygments.text': PROMPT_DEFAULT_TEXT,
+        'pygments.name.help': PYGMENTS_NAME_HELP,
+        'pygments.name.exit': PYGMENTS_NAME_EXIT,
+        'pygments.name.symbol': PYGMENTS_NAME_SYMBOL,
+
+        'pygments.name.label': PYGMENTS_NAME_SHELL,
+
+        'pygments.name.invalidcommand': PYGMENTS_NAME_INVALIDCOMMAND,
+        'pygments.name.command': PYGMENTS_NAME_COMMAND,
+        'pygments.name.subcommand': PYGMENTS_NAME_SUBCOMMAND,
+
+        'pygments.name.attribute': PYGMENTS_PARAMETER_CHOICE,
+
+        'pygments.name.tag': PYGMENTS_OPTION,
+
+        'pygments.operator': PYGMENTS_OPERATOR,
+        'pygments.keyword': PYGMENTS_KEYWORD,
+
+        'pygments.literal.number': PYGMENTS_LITERAL_NUMBER,
+
+        'pygments.literal.string': PYGMENTS_LITERAL_STRING,
+        'pygments.literal.string.symbol': PYGMENTS_LITERAL_STRING_LITERAL
+    })
+except: pass

@@ -35,6 +35,7 @@ class Shell(PrettyGroup):
     - :param:`complete_while_typing`: If True, prompt_toolkit suggestions will be live (on a separate thread)
     - :param:`fuzzy_completion`: If True, use fuzzy completion for prompt_toolkit suggestions
     - :param:`mouse_support`: If True, enables mouse support for prompt_toolkit
+    - :param:`lexer`: If True, enables the prompt_toolkit lexer
     """
 
     def __init__(self, 
@@ -48,7 +49,8 @@ class Shell(PrettyGroup):
         readline=None, 
         complete_while_typing=True, 
         fuzzy_completion=True, 
-        mouse_support=True, 
+        mouse_support=True,
+        lexer=True,
     **attrs):
         # Allows this class to be used as a subclass without a new shell instance attached
         self.isShell = isShell
@@ -74,7 +76,9 @@ class Shell(PrettyGroup):
             # Create the shell
             self.shell = ClickCmdShell(hist_file=hist_file, on_finished=on_shell_closed, 
                 add_command_callback=add_command_callback, before_start=on_shell_start, readline=readline,
-                complete_while_typing=complete_while_typing, fuzzy_completion=fuzzy_completion, mouse_support=mouse_support)
+                complete_while_typing=complete_while_typing, fuzzy_completion=fuzzy_completion, mouse_support=mouse_support,
+                lexer=lexer
+            )
 
             if prompt:
                 self.shell.prompt = prompt

@@ -94,7 +94,7 @@ class ClickCompleter(Completer):
         
             if obj:
                 if obj2 and obj2['isGroup']:
-                    commands = [k for k, v in obj2.items() if isinstance(obj2[k], dict)]
+                    commands = [k for k, v in obj2.items() if isinstance(obj2[k], dict) and not obj2[k]['isHidden']]
                     for key in commands:
                         if key.startswith(word):
                             h = html_escape(obj2[key]['_help'])
@@ -117,7 +117,7 @@ class ClickCompleter(Completer):
                     root = deep_get(COMPLETION_TREE, words[0 + (l - 1)])
                     if root or line.count(' ') == 0:
                         if (root and line.count(' ') == 0) or not root:
-                            commands = [k for k, v in obj.items() if isinstance(obj[k], dict)]
+                            commands = [k for k, v in obj.items() if isinstance(obj[k], dict) and not obj[k]['isHidden']]
                             for key in commands:
                                 if key.startswith(word):
                                     h = html_escape(obj[key]['_help'])
@@ -146,12 +146,16 @@ class ClickCompleter(Completer):
                         if isChoice:
                             try:
                                 if len(option.choices.display_tags):
-                                    tag = option.choices.display_tags[values.index(value)]
+                                    try:
+                                        tag = option.choices.display_tags[values.index(value)]
+                                    except: tag = option.choices.display_tags[values.pop()]
                             except: pass
                                 
                             try:
                                 if len(option.type.display_tags):
-                                    tag = option.type.display_tags[values.index(value)]
+                                    try:
+                                        tag = option.type.display_tags[values.index(value)]
+                                    except: tag = option.type.display_tags[values.pop()]
                             except: pass
 
                         if isBool:
@@ -322,7 +326,7 @@ def BuildCompletionTree(ctx: click.Context):
             for subcommand in command.list_commands(ctx):
                 cmd: click.Command = command.get_command(ctx, subcommand)
                 if cmd is None: continue
-                if cmd.hidden: continue
+                # if cmd.hidden: continue
 
                 commands.append((subcommand, cmd))
         except Exception as e: pass
@@ -392,6 +396,7 @@ def BuildCompletionTree(ctx: click.Context):
                 "CommandTree": parents,
                 "isShell": False,
                 "isRoot": False,
+                "isHidden": cmd.hidden,
                 "_options": opts,
                 "_arguments": args,
                 "_help": cmd.short_help or cmd.help
@@ -402,6 +407,7 @@ def BuildCompletionTree(ctx: click.Context):
             keys.append(cmd.name)
             dic = deep_get(COMPLETION_TREE, *keys)
             dic['isShell'] = bool(isinstance(cmd, Shell) and cmd.isShell)
+            dic['isHidden'] = cmd.hidden
             dic['_options'] = opts
             dic['_arguments'] = args
             dic['_help'] = cmd.short_help or cmd.help
