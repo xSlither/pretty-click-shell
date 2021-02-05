@@ -22,6 +22,8 @@ pcshell.globals.__IsShell__ = len(sys.argv) == 1 # REQUIRED
 pcshell.globals.HISTORY_FILENAME = '.testapp-history'
 
 pcshell.colors.COMPLETION_ROOT_COMMAND_DESCRIPTION = 'fg=\"#b30000\"'
+
+IsShell = pcshell.globals.__IsShell__
 #==============================================================================
 
 
@@ -148,20 +150,21 @@ def someshell():
 
 @api.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
 @pcshell.argument('arg1', type=str, help="Some argument for this command")
-@pcshell.option('--opt1', type=pcshell.types.Choice(['blue', 'red'], display_tags=['ansiblue', 'ansired']), help="Some option for this command")
+@pcshell.option('--opt1', type=pcshell.types.Choice(['blue', 'red'], display_tags=['ansiblue', 'style fg="#dc322f"']), help="Some option for this command")
 @pcshell.option('--opt2', type=bool, help="Some option for this command")
+@pcshell.repeatable
 def test(arg1, opt1, opt2):
     """Some API Command"""
-    click.echo('Argument was "{}". "{}" was selected, with additional flag = "{}"'.format(arg1, opt1, opt2))
-    pass
+    if IsShell: click.echo('Argument was "{}". "{}" was selected, with additional flag = "{}"'.format(arg1, opt1, opt2))
+    return { 'someProp': arg1, 'someProp2': opt1, 'someProp3': opt2 }
 
 @api.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=False)
 @pcshell.option('--date', type=str, callback=VerifyDate, prompt='Effective Date', help="Some argument for this command")
 @pcshell.add_options(option_useDevRegion)
 def test2(date, dev):
     """Some Other API Command"""
-    click.echo('Effective Date was "{}", and DEV Mode = "{}"'.format(date, dev))
-    pass
+    if IsShell: click.echo('Effective Date was "{}", and DEV Mode = "{}"'.format(date, dev))
+    return { 'date': date, 'devMode': dev }
 
 #--------------------------------------------
 
@@ -172,12 +175,12 @@ def test2(date, dev):
 
 def some_callback(ctx: click.Context, param, value):
     if not value or ctx.resilient_parsing: return False
-    click.echo('[Option 2 Callback] (Is Eager)')
+    if IsShell: click.echo('[Option 2 Callback] (Is Eager)')
     return value
 
 def some_other_callback(ctx: click.Context, param, value):
     if not value or ctx.resilient_parsing: return False
-    click.echo('[Option 1 Callback]')
+    if IsShell: click.echo('[Option 1 Callback]')
     return value
 
 @someshell.command(context_settings=CONTEXT_SETTINGS)
@@ -185,9 +188,10 @@ def some_other_callback(ctx: click.Context, param, value):
 @pcshell.option('--opt2', is_flag=True, is_eager=True, hidden=True, callback=some_callback, help='This help text should never be displayed')
 def test(opt1, opt2):
     """Some Sub-Shell Command"""
-    click.echo('Option 1 is: %s' % opt1)
-    click.echo('Option 2 is: %s' % opt2)
-    pass
+    if IsShell:
+        click.echo('Option 1 is: %s' % opt1)
+        click.echo('Option 2 is: %s' % opt2)
+    return { 'opt1': opt1, 'opt2': opt2 }
 
 
 @someshell.group(context_settings=CONTEXT_SETTINGS)
@@ -199,13 +203,15 @@ def group():
 @pcshell.argument('choice', type=pcshell.types.Choice(['blue', 'red'], display_tags=['ansiblue', 'ansired']))
 def cmd(choice):
     """Some Sub-Command of the Sub-Shell"""
-    click.echo('Argument was: "%s"' % choice)
+    if IsShell: click.echo('Argument was: "%s"' % choice)
+    return 'Some return string that includes "%s"' % choice
 
 #--------------------------------------------
 
 
 # !SECTION
 #//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 
 # ANCHOR Main Routine

@@ -86,6 +86,7 @@ def command_lexer(lexer, match):
                 if not (option.is_bool_flag or option.is_flag):
                     values = []
                     isChoice = False
+                    isBool = False
 
                     if option.type.name == 'choice': 
                         values = [c for c in option.type.choices if c]
@@ -93,26 +94,33 @@ def command_lexer(lexer, match):
                     elif option.choices and ('Choice' in str(type(option.choices))): 
                         values = [c for c in option.choices.choices if c]
                         isChoice = True
+                    elif option.type.name == 'boolean': 
+                        isBool = True
+                        values = ['true', 'false']
 
                     # Verified Option Parameter
                     if isChoice and word in values: return Name.Attribute
                     elif isChoice: return Name.InvalidCommand
+                    elif isBool and word in values: return Keyword
+                    elif isBool: return Name.InvalidCommand
                     else: Text
 
+
+        nargs = (len(words) - len(current_key)) - 1
+
+        def AnalyzeOptions():
+            option_names = get_option_names()
+            ret = 0
+            for oName in option_names:
+                option = get_option('--%s' % oName)
+                if option:
+                    if not (option.is_bool_flag or option.is_flag): ret += 2
+            return ret
+
+        nargs = nargs - AnalyzeOptions()
+
         if len(obj['_arguments']):
-            nargs = len(words) - len(current_key)
-
-            def AnalyzeOptions():
-                option_names = get_option_names()
-                ret = 0
-                for oName in option_names:
-                    option = get_option('--%s' % oName)
-                    if option:
-                        if not (option.is_bool_flag or option.is_flag): ret += 2
-                return ret
-
-            nargs = nargs - AnalyzeOptions()
-            if nargs <= len(obj['_arguments']):
+            if nargs < len(obj['_arguments']):
                 arg = obj['_arguments'][nargs - 1 if nargs > 0 else 0]
 
                 name = arg[0]
@@ -120,13 +128,20 @@ def command_lexer(lexer, match):
                 values = arg[2]
 
                 isChoice = bool(argument.type.name == 'choice' or argument.choices)
+                isBool = argument.type.name == 'boolean'
 
                 # Verified Argument Parameter
                 if isChoice and word in values: return Name.Attribute
                 elif isChoice: return Name.InvalidCommand
+                elif isBool and word in values: return Keyword
+                elif isBool: return Name.InvalidCommand
                 else: Text
 
-        return Text
+            else: return Name.InvalidCommand # Invalid Argument
+
+        elif nargs > -1: return Name.InvalidCommand # Invalid Argument
+
+        return Text # Default
 
 
     if obj and isinstance(obj, dict):
@@ -179,6 +194,7 @@ class ShellLexer(RegexLexer):
             (r'^(\?|help)\s*$', Name.Help),
             (r'^(q|quit|exit)\s*$', Name.Exit),
             (r'^(cls|clear)\s*$', Name.Help),
+            (r'^(repeat)\s*$', Name.Help),
 
             # Boolean
             (r"(True|False|true|false)|((?<=\s)y|n(?=\s|$))", Keyword),

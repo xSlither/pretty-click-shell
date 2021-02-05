@@ -10,12 +10,17 @@ def BuildCommandString(ctx: click.Context) -> None:
         globs.__LAST_COMMAND_VISIBLE__ = ret
 
         args = { a.name: a for a in ctx.command.params if isinstance(a, click.Argument) }
+        opts = { o.name: o for o in ctx.command.params if isinstance(o, click.Option) }
 
         if ctx.params and len(ctx.params) > 0:
             for key in ctx.params:
                 if isinstance(ctx.params[key], bool):
                     if not key in args:
-                        if ctx.params[key]: ret += ' --{key}'.format(key=key)
+                        if ctx.params[key]: 
+                            ret += ' --{key}'.format(key=key)
+                            if key in opts:
+                                if not (opts[key].is_bool_flag or opts[key].is_flag):
+                                    ret += ' %s' % ctx.params[key]
                     else: ret += ' {value}'.format(value=ctx.params[key])
 
                 elif isinstance(ctx.params[key], str):

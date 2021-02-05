@@ -31,16 +31,25 @@ class Shell(PrettyGroup):
     - :param:`on_finished`: Callback function when shell closes
     - :param:`add_command_callback`: Callback for extending command kwargs. See :func:`multicommand.CustomCommandPropsParser()`
     - :param:`before_start`: os.system() command to execute prior to starting the shell
-    - :param:`readline`: If True, use GNU readline instead of any prompt_toolkit features
+    - :param:`readline`: If True, use pyreadline instead of any prompt_toolkit features
     - :param:`complete_while_typing`: If True, prompt_toolkit suggestions will be live (on a separate thread)
     - :param:`fuzzy_completion`: If True, use fuzzy completion for prompt_toolkit suggestions
     - :param:`mouse_support`: If True, enables mouse support for prompt_toolkit
     """
 
-    def __init__(self, isShell=False, prompt=None, intro=None, hist_file=None, 
-    on_finished=None, add_command_callback: Callable[[ClickCmdShell, object, str], None] =None, 
-    before_start=None,
-    readline=None, complete_while_typing=True, fuzzy_completion=True, mouse_support=True, **attrs):
+    def __init__(self, 
+        isShell=False, 
+        prompt=None, 
+        intro=None, 
+        hist_file=None, 
+        on_finished=None, 
+        add_command_callback: Callable[[ClickCmdShell, object, str], None] = None, 
+        before_start=None,
+        readline=None, 
+        complete_while_typing=True, 
+        fuzzy_completion=True, 
+        mouse_support=True, 
+    **attrs):
         # Allows this class to be used as a subclass without a new shell instance attached
         self.isShell = isShell
 
@@ -300,5 +309,6 @@ class BaseShellCommands:
             """Repeats the last valid command with all previous parameters"""
             if globs.__LAST_COMMAND__:
                 globs.__IS_REPEAT__ = True
-                globs.__PREV_STDIN__ = sys.stdin
-                sys.stdin = StringIO(globs.__LAST_COMMAND__)
+                if shell.shell.readline:
+                    globs.__PREV_STDIN__ = sys.stdin
+                    sys.stdin = StringIO(globs.__LAST_COMMAND__)

@@ -12,6 +12,8 @@ try:
     from prompt_toolkit.shortcuts import PromptSession
     
     from prompt_toolkit.lexers import PygmentsLexer
+
+    from prompt_toolkit.input.defaults import create_pipe_input
 except: pass
 
 from cmd import Cmd
@@ -39,9 +41,16 @@ class ClickCmd(Cmd, object):
     nohelp = "No help on %s"
     nocommand = "\n\t{}Command not found: {}%s{}".format(colors.COMMAND_NOT_FOUND_TEXT_STYLE, colors.COMMAND_NOT_FOUND_TEXT_FORE, Style.RESET_ALL)
 
-    def __init__(self, ctx: click.Context =None, 
-    on_finished=None, hist_file=None, before_start=None, readline=None, 
-    complete_while_typing=True, fuzzy_completion=True, mouse_support=True, *args, **kwargs):
+    def __init__(self, 
+        ctx: click.Context =None, 
+        on_finished=None, 
+        hist_file=None, 
+        before_start=None, 
+        readline=None, 
+        complete_while_typing=True, 
+        fuzzy_completion=True, 
+        mouse_support=True, 
+    *args, **kwargs):
         self._stdout = kwargs.get('stdout')
         super(ClickCmd, self).__init__(*args, **kwargs)
 
@@ -54,6 +63,7 @@ class ClickCmd(Cmd, object):
         self.complete_while_typing = complete_while_typing
         self.fuzzy_completion = fuzzy_completion
         self.mouse_support = mouse_support
+        self._pipe_input = create_pipe_input() if not self.readline else None
 
         # A callback function that will be excuted before loading up the shell. 
         # By default this changes the color to 0a on a Windows machine
@@ -188,6 +198,7 @@ class ClickCmd(Cmd, object):
 
                 self.prompter = PromptSession(
                     message,
+
                     style=prompt_style,
                     color_depth=ColorDepth.TRUE_COLOR,
 
@@ -198,7 +209,20 @@ class ClickCmd(Cmd, object):
                     complete_in_thread=self.complete_while_typing,
                     complete_while_typing=self.complete_while_typing,
                     lexer=PygmentsLexer(ShellLexer),
-                    
+                )
+
+                self.piped_prompter = PromptSession(
+                    message,
+
+                    style=prompt_style,
+                    color_depth=ColorDepth.TRUE_COLOR,
+
+                    input=self._pipe_input,
+                    key_bindings=None,
+
+                    is_password=True,
+
+                    lexer=PygmentsLexer(ShellLexer)
                 )
 
             # Start Shell Application Loop
@@ -208,9 +232,13 @@ class ClickCmd(Cmd, object):
                 else:
                     try:
                         if self.readline:
-                            line = get_input(self.get_prompt())
+                            line = get_input(self.get_prompt() + ' > ')
                         else:
-                            line = self.prompter.prompt()
+                            if not globs.__IS_REPEAT_EOF__:
+                                line = self.prompter.prompt()
+                            elif self._pipe_input:
+                                line = self.piped_prompter.prompt()
+
                     except EOFError:
                         if not globs.__IS_REPEAT_EOF__:
                             # Exits the Shell Application when stdin stream ends
@@ -219,7 +247,7 @@ class ClickCmd(Cmd, object):
                         else:
                             # Swap STDIN from Programmatic Input back to User Input
                             globs.__IS_REPEAT_EOF__ = False
-                            sys.stdin = globs.__PREV_STDIN__
+                            if self.readline: sys.stdin = globs.__PREV_STDIN__
                             # Prevent empty lines from being created from null input
                             print('\n' + IGNORE_LINE)
                             continue
@@ -259,6 +287,11 @@ class ClickCmd(Cmd, object):
                         if line[0:6] != 'repeat' and globs.__IS_REPEAT__: 
                             globs.__IS_REPEAT__ = False
                             globs.__IS_REPEAT_EOF__ = True
+                            if (not self.readline) and self._pipe_input:
+                                self._pipe_input.send_text(globs.__LAST_COMMAND__ + '\r')
+                                
+                        elif self._pipe_input and globs.__IS_REPEAT_EOF__:
+                            globs.__IS_REPEAT_EOF__ = False
                 else:
                     # Prevent empty lines from being created from null input
                     if not self.readline: click.echo(IGNORE_LINE)

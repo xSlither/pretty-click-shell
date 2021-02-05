@@ -42,6 +42,7 @@ def html_escape(s: str):
 
 
 class ClickCompleter(Completer):
+
     def get_completions(self, document, complete_event):
         word: str = document.get_word_before_cursor()
         line: str = document.current_line_before_cursor
@@ -56,21 +57,30 @@ class ClickCompleter(Completer):
         try:
             current_key = []
             for i in range(0, len(words)):
-                if deep_get(COMPLETION_TREE, *words[:len(words) - i]):
-                    if len(original_words) > 2: current_key = words[:len(words) - (i - 1) + len(globs.__SHELL_PATH__)]
-                    elif '--' in lastword: current_key = words[:len(words) - i]
-                    else: 
-                        current_key = words[:len(words) - (i - 1)]
+                if i < len(globs.__SHELL_PATH__): continue
+
+                try:
+                    if deep_get(COMPLETION_TREE, *words[:len(words) - i]):
+                        if len(original_words) > 2:
+                            current_key = words[:(len(words) - (i - 1)) + len(globs.__SHELL_PATH__)]
+                            if deep_get(COMPLETION_TREE, *current_key): break
+
+                        elif '--' in lastword: 
+                            current_key = words[:len(words) - i]
+                        else: 
+                            current_key = words[:len(words) - (i - 1)]
+                            if deep_get(COMPLETION_TREE, *current_key): break
+
+                    elif priorOption and '--' in priorOption:
+                        current_key = words[:len(words) - (i + 1)]
                         if deep_get(COMPLETION_TREE, *current_key): break
 
-                elif priorOption and '--' in priorOption:
-                    current_key = words[:len(words) - (i + 1)]
-                    if deep_get(COMPLETION_TREE, *current_key): break
-
-                else:
-                    if deep_get(COMPLETION_TREE, *words[:len(words) - (i + 1)]):
-                        current_key = words[:len(words) - (i + 1)]
-                        break
+                    else:
+                        key = words[:len(words) - (i + 1)]
+                        if deep_get(COMPLETION_TREE, *key):
+                            current_key = key
+                            break
+                except: break
 
             obj = deep_get(COMPLETION_TREE, *current_key)
             obj2 = deep_get(COMPLETION_TREE, *words)
@@ -120,7 +130,6 @@ class ClickCompleter(Completer):
 
 
                 if len(current_key):
-
                     def get_option(name: str):
                         if len(obj['_options']):
                             try: return [x for x in obj['_options'] if x[0] == name][0][1]
@@ -182,7 +191,7 @@ class ClickCompleter(Completer):
                                             display=HTML("<{}>{}</{}>".format(
                                                 tag,
                                                 value,
-                                                tag
+                                                tag if not 'style' in tag else 'style'
                                             ))
                                         )
                                 return
@@ -246,7 +255,7 @@ class ClickCompleter(Completer):
                                             display=HTML("<{}>{}</{}>".format(
                                                 tag,
                                                 choice,
-                                                tag
+                                                tag if not 'style' in tag else 'style'
                                             ))
                                         )
                             else:

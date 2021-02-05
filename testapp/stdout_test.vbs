@@ -4,7 +4,7 @@ Dim LocalDirectory
 Set wsh = CreateObject("WScript.Shell")
 LocalDirectory = GetFileDirectory(WScript.ScriptFullName)
 
-Return = wsh.Run(LocalDirectory & "testapp.cmd teststdout > " & LocalDirectory & "output.txt", 0, True)
+Return = wsh.Run(LocalDirectory & "testapp.cmd api test --opt1 blue --opt2 true someText > " & LocalDirectory & "output.txt", 0, True)
 
 Dim file, txt
 
