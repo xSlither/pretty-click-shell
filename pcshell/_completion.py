@@ -171,33 +171,45 @@ class ClickCompleter(Completer):
                         if option:
                             if not (option.is_bool_flag or option.is_flag):
                                 values = []
-
                                 isChoice = False
                                 isBool = False
 
-                                if option.type.name == 'choice':
-                                    isChoice = True
-                                    values = [c for c in option.type.choices if c]
-                                elif option.choices and ('Choice' in str(type(option.choices))): 
-                                    isChoice = True
-                                    values = [c for c in option.choices.choices if c]
-                                elif option.type.name == 'boolean': 
-                                    isBool = True
-                                    values = ['true', 'false']
+                                if not option.literal:
 
-                                for value in values:
-                                    if value.startswith(word):
-                                        tag = get_option_display_tag(option, value, isChoice=isChoice, isBool=isBool)
+                                    if option.type.name == 'choice':
+                                        isChoice = True
+                                        values = [c for c in option.type.choices if c]
+                                    elif option.choices and ('Choice' in str(type(option.choices))): 
+                                        isChoice = True
+                                        values = [c for c in option.choices.choices if c]
+                                    elif option.type.name == 'boolean': 
+                                        isBool = True
+                                        values = ['true', 'false']
 
-                                        yield Completion(
-                                            value,
-                                            start_position=-len(word),
-                                            display=HTML("<{}>{}</{}>".format(
-                                                tag,
+                                    for value in values:
+                                        if value.startswith(word):
+                                            tag = get_option_display_tag(option, value, isChoice=isChoice, isBool=isBool)
+
+                                            yield Completion(
                                                 value,
-                                                tag if not 'style' in tag else 'style'
-                                            ))
-                                        )
+                                                start_position=-len(word),
+                                                display=HTML("<{}>{}</{}>".format(
+                                                    tag,
+                                                    value,
+                                                    tag if not 'style' in tag else 'style'
+                                                ))
+                                            )
+
+                                else:
+                                    if option.literal_tuple_type:
+                                        if not len(word):
+                                            yield Completion(
+                                                '[',
+                                                start_position=-len(word),
+                                            )
+                                        else: 
+                                            print(word)
+                                            
                                 return
 
 

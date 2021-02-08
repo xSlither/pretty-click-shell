@@ -184,12 +184,19 @@ def test2(date, dev):
 tuple_test_choice = pcshell.types.Choice(['choice1', 'choice2'], display_tags=['style fg=#d7ff00'])
 
 @multi.command(['tup', 'tuple'], context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
-@pcshell.option('--t', default=[])
+@pcshell.option('--t', default=[], literal=True, literal_tuple_type=[str, float, bool, tuple_test_choice])
 def test_tuple(t):
     """Test Tuple Completion"""
     if IsShell:
         click.echo('Provided Parameter: %s' % str(t))
+        click.echo('Parameter Type is: %s' % type(t))
     return t
+
+@multi.command(['click_tuple', 'clicktup'], context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
+@pcshell.option('--t', default=[], literal=True)
+def test_click_tuple(t):
+    """Test Click Tuple Completion"""
+
 
 #--------------------------------------------
 
