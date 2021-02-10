@@ -72,6 +72,7 @@ class PrettyOption(click.Option):
 
 
         def check_tuple():
+            valid = False
             if self.literal and self.literal_tuple_type:
                 if len(value) == len(self.literal_tuple_type):
                     for i in range(0, len(value)):
@@ -80,11 +81,14 @@ class PrettyOption(click.Option):
                                 if value[i] in self.literal_tuple_type[i].choices: continue
                                 raise click.BadArgumentUsage('"{}" is not a valid argument. Valid choices are: {}'.format(value[i], str(self.literal_tuple_type[i].choices)))
                             
-                        else: continue
+                        else: 
+                            valid = True
+                            continue
 
+                        valid = False
                         break
 
-                raise click.BadParameter('Tuple type does not match.\n\n\tProvided: {}\n\tExpected: {}'.format(value, self.literal_tuple_type))
+                if not valid: raise click.BadParameter('Tuple type does not match.\n\n\tProvided: {}\n\tExpected: {}'.format(value, self.literal_tuple_type))
 
         check_tuple()
         if self.expose_value:
