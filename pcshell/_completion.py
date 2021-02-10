@@ -235,7 +235,7 @@ class ClickCompleter(Completer):
                         return tag
 
                     
-                    def get_literal_tuple_display(option: PrettyOption, word) -> Tuple[List[str], HTML, HTML]:
+                    def get_literal_tuple_display(option: PrettyOption, word: str, mod=0) -> Tuple[List[str], HTML, HTML]:
                         Current_Tag_Begin = '<u><b>'
                         Current_Tag_End = '</b></u>'
 
@@ -267,33 +267,36 @@ class ClickCompleter(Completer):
                             types = []
                             if len(cur_json) and (len(cur_json) < len(option.literal_tuple_type)):
                                 if remaining:
-                                    for tuple_type in option.literal_tuple_type[len(cur_json):]:
+                                    for tuple_type in option.literal_tuple_type[len(cur_json) + mod:]:
                                         types.append('<style {}>{}</style>'.format(colors.COMPLETION_LITERAL_TUPLE_TYPE, html_escape(str(tuple_type))))
                                 else:
-                                    for tuple_type in option.literal_tuple_type[:len(cur_json)]:
+                                    for tuple_type in option.literal_tuple_type[:len(cur_json) + mod]:
                                         types.append('<style {}>{}</style>'.format(colors.COMPLETION_LITERAL_TUPLE_TYPE_USED, html_escape(str(tuple_type))))
                             elif len(cur_json) and not remaining:
-                                for tuple_type in option.literal_tuple_type:
+                                for tuple_type in option.literal_tuple_type[:len(cur_json) + mod]:
                                     types.append('<style {}>{}</style>'.format(colors.COMPLETION_LITERAL_TUPLE_TYPE_USED, html_escape(str(tuple_type))))
-                            elif remaining:
-                                for tuple_type in option.literal_tuple_type:
-                                    types.append('<style {}>{}</style>'.format(colors.COMPLETION_LITERAL_TUPLE_TYPE, html_escape(str(tuple_type))))
+                            else:
+                                if remaining:
+                                    for tuple_type in option.literal_tuple_type[mod:]:
+                                        types.append('<style {}>{}</style>'.format(colors.COMPLETION_LITERAL_TUPLE_TYPE, html_escape(str(tuple_type))))
+                                else:
+                                    types.append('<style {}>{}</style>'.format(colors.COMPLETION_LITERAL_TUPLE_TYPE_USED, html_escape(str(option.literal_tuple_type[0]))))
                             return types
 
                         
                         def get_tuple_values(used_types, cur_json) -> List[str]:
                             if not len(word.rstrip()): 
                                 return ['[']
-                            elif len(used_types):
-                                if (len(used_types) < len(option.literal_tuple_type)):
+                            else:
+                                if (len(cur_json) < len(option.literal_tuple_type) + mod):
                                     values = []
                                     isChoice = False
                                     isBool = False
 
-                                    if 'Choice(' in str(option.literal_tuple_type[len(used_types)]): 
+                                    if 'Choice(' in str(option.literal_tuple_type[len(used_types) - 1 if len(used_types) else 0]): 
                                         isChoice = True
-                                        values = [c for c in option.literal_tuple_type[len(used_types)].choices if c]
-                                    elif str(option.literal_tuple_type[len(used_types)]) == 'bool': 
+                                        values = ['"%s"' % c for c in option.literal_tuple_type[len(used_types) - 1 if len(used_types) else 0].choices if c]
+                                    elif str(option.literal_tuple_type[len(used_types) - 1 if len(used_types) else 0]) == 'bool': 
                                         isBool = True
                                         values = ['true', 'false']
 
@@ -302,11 +305,6 @@ class ClickCompleter(Completer):
                                     return values
                                 else:
                                     return [']']
-                            else:
-                                if len(cur_json):
-                                    # return ['"{}"'.format(html_escape(str(cur_json[len(used_types) - 1])))]
-                                    return ['\"\"']
-                                else: return [' ']
 
                         
                         def get_tuple_value_display(used_types, cur_json) -> str:
@@ -320,11 +318,14 @@ class ClickCompleter(Completer):
                             else: 
                                 if len(cur_json):
                                     return '<style {}>{}</style>'.format(colors.COMPLETION_LITERAL_TUPLE_TYPE_CURRENT, html_escape(str(option.literal_tuple_type[len(used_types) - 1])))
-                                else: 
+                                else:
                                     return '<style {}>{}</style>'.format(colors.COMPLETION_LITERAL_TUPLE_TYPE_CURRENT, html_escape(str(option.literal_tuple_type[0])))
 
                         word_json = get_valid_json(word)
                         if not word_json: word_json = []
+
+                        if len(word_json) >= len(option.literal_tuple_type): mod -= 1
+
                         used_types = get_tuple_displaylist(word_json, False)
                         remaining_types = get_tuple_displaylist(word_json)
                         vals = get_tuple_values(used_types, word_json)
@@ -340,12 +341,14 @@ class ClickCompleter(Completer):
                         disp = '<b>[</b>'
                         if len(used_types):
                             disp += ', '.join(used_types)
-                        if len(used_types) < len(remaining_types):
-                            disp += ', '.join(remaining_types)
+                        if len(used_types) < len(option.literal_tuple_type):
+                            disp += ', ' + ', '.join(remaining_types)
                         disp += '<b>]</b>'
+
                         if index > -1:
-                            pass
-                            #disp = disp.replace(used_types[index], '{}{}{}'.format(Current_Tag_Begin, used_types[index], Current_Tag_End))
+                            disp = disp.replace(used_types[index + mod], '{}{}{}'.format(Current_Tag_Begin, used_types[index + mod], Current_Tag_End))
+                        elif len(used_types):
+                            disp = disp.replace(used_types[0], '{}{}{}'.format(Current_Tag_Begin, used_types[0], Current_Tag_End))
 
                         # print(disp)
                         # print(disp_val)
@@ -392,10 +395,13 @@ class ClickCompleter(Completer):
                                 else:
                                     if option.literal_tuple_type:
                                         orig_tuple = ClickCompleter.get_current_tuple_from_line(line)
-                                        true_tuple = re.sub(r"((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$", ', -1', orig_tuple)
+                                        true_tuple = re.sub(r"((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$", '', orig_tuple)
+
+                                        mod = 1
+                                        # if re.search(r"(((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$)|((\"[\s]*,[\s]*\")(?![\w|\W]*\"))", orig_tuple): mod = 1
 
                                         try:
-                                            completion_data = get_literal_tuple_display(option, true_tuple)
+                                            completion_data = get_literal_tuple_display(option, true_tuple, mod)
                                         except Exception as e:
                                             print(e)
                                             return
@@ -406,7 +412,7 @@ class ClickCompleter(Completer):
 
                                         if len(values) == 1:
                                             yield Completion(
-                                                orig_tuple + values[0],
+                                                orig_tuple + (values[0] if not values[0] == '*' else 'dd'),
                                                 start_position=-len(orig_tuple),
                                                 display=disp,
                                                 display_meta=disp_meta
@@ -426,20 +432,20 @@ class ClickCompleter(Completer):
                                             if len(tmp_words) == 1 and curVal.startswith('['): curVal.replace('[', '', 1)
 
                                             for value in values:
-                                                if value.startswith(curVal):
-                                                    tag = get_option_literal_tuple_display_tag(option.literal_tuple_type[i], value)
+                                                # if not curVal or value.startswith(curVal):
+                                                tag = get_option_literal_tuple_display_tag(option.literal_tuple_type[i], value)
 
-                                                    yield Completion(
+                                                yield Completion(
+                                                    value,
+                                                    start_position=-len(word),
+                                                    display= HTML("<{}>{}</{}>".format(
+                                                        tag,
                                                         value,
-                                                        start_position=-len(word),
-                                                        display= HTML("<{}>{}</{}>".format(
-                                                            tag,
-                                                            value,
-                                                            tag if not 'style' in tag else 'style'
-                                                        )),
-                                                        display_meta=disp_meta
-                                                    )
-                                                    i += 1
+                                                        tag if not 'style' in tag else 'style'
+                                                    )),
+                                                    display_meta=disp_meta
+                                                )
+                                                i += 1
                                 # --------------------------------------------------------------------------------------------------------------------
                                 return
 
