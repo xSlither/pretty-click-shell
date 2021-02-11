@@ -88,15 +88,18 @@ def command_lexer(lexer, match):
                     isChoice = False
                     isBool = False
 
-                    if option.type.name == 'choice': 
-                        values = [c for c in option.type.choices if c]
-                        isChoice = True
-                    elif option.choices and ('Choice' in str(type(option.choices))): 
-                        values = [c for c in option.choices.choices if c]
-                        isChoice = True
-                    elif option.type.name == 'boolean': 
-                        isBool = True
-                        values = ['true', 'false']
+                    if not '.Tuple object' in str(option.type):
+                        if option.type.name == 'choice': 
+                            values = [c for c in option.type.choices if c]
+                            isChoice = True
+                        elif option.choices and ('Choice' in str(type(option.choices))): 
+                            values = [c for c in option.choices.choices if c]
+                            isChoice = True
+                        elif option.type.name == 'boolean': 
+                            isBool = True
+                            values = ['true', 'false']
+                    else:
+                        pass
 
                     # Verified Option Parameter
                     if isChoice and word in values: return Name.Attribute
@@ -114,7 +117,10 @@ def command_lexer(lexer, match):
             for oName in option_names:
                 option = get_option('--%s' % oName)
                 if option:
-                    if not (option.is_bool_flag or option.is_flag): ret += 2
+                    if not (option.is_bool_flag or option.is_flag): 
+                        ret += 2
+                        if '.Tuple object' in str(option.type):
+                            ret += option.nargs - 1 if option.nargs else 0
             return ret
 
         nargs = nargs - AnalyzeOptions()
@@ -133,8 +139,10 @@ def command_lexer(lexer, match):
                 # Verified Argument Parameter
                 if isChoice and word in values: return Name.Attribute
                 elif isChoice: return Name.InvalidCommand
+                
                 elif isBool and word in values: return Keyword
                 elif isBool: return Name.InvalidCommand
+
                 else: Text
 
             else: return Name.InvalidCommand # Invalid Argument

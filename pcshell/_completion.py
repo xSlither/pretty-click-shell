@@ -71,6 +71,7 @@ class ClickCompleter(Completer):
                 except: return None
             else: return None
 
+
     @staticmethod
     def get_current_tuple_from_line(line) -> str:
         tmp = line.rstrip()
@@ -171,6 +172,8 @@ class ClickCompleter(Completer):
 
 
                 if len(current_key):
+
+                    # Option Reflection Utilities
                     
                     def get_option(name: str) -> PrettyOption:
                         if len(obj['_options']):
@@ -183,6 +186,8 @@ class ClickCompleter(Completer):
                         expression = r'(?<=--)([a-zA-Z0-9]*)(?=\s)'
                         return re.findall(expression, line)
 
+
+                    # HTML Display Style Utilities
                     
                     def get_option_display_tag(option, value, isChoice=False, isBool=False) -> List[str]:
                         tag = colors.COMPLETION_CHOICE_DEFAULT
@@ -235,13 +240,16 @@ class ClickCompleter(Completer):
                         return tag
 
                     
-                    def get_literal_tuple_display(option: PrettyOption, word: str, mod=0) -> Tuple[List[str], HTML, HTML]:
+                    # Typed Tuple Parameter Completion Support
+
+                    def get_literal_tuple_display(option: PrettyOption, word: str, mod=0) -> Tuple[List[str], HTML, HTML, int]:
                         Current_Tag_Begin = '<u><b>'
                         Current_Tag_End = '</b></u>'
 
                         def get_valid_json(w: str, recurse=False) -> Union[list, None]:
                             tmp = w.rstrip()
                             tmp = re.sub(r"((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$", '', tmp)
+                            tmp = re.sub(r"([,]{1,999}.(?<=,))", ',', tmp)
 
                             if tmp.startswith('['):
                                 try:
@@ -293,12 +301,22 @@ class ClickCompleter(Completer):
                                     isChoice = False
                                     isBool = False
 
-                                    if 'Choice(' in str(option.literal_tuple_type[len(used_types) - 1 if len(used_types) else 0]): 
+                                    raw_type = option.literal_tuple_type[len(used_types) - 1 if len(used_types) else 0]
+                                    type_str = str(raw_type)
+
+                                    if  type_str.startswith('Choice('):
                                         isChoice = True
-                                        values = ['"%s"' % c for c in option.literal_tuple_type[len(used_types) - 1 if len(used_types) else 0].choices if c]
-                                    elif str(option.literal_tuple_type[len(used_types) - 1 if len(used_types) else 0]) == 'bool': 
+                                        values = ['"%s"' % c for c in raw_type.choices if c]
+
+                                    elif "<class 'bool'>" in type_str: 
                                         isBool = True
                                         values = ['true', 'false']
+
+                                    elif "<class 'float'>" in type_str:
+                                        values.append('0.0')
+
+                                    elif "<class 'int'>" in type_str:
+                                        values.append('0')
 
                                     if not len(values): 
                                         values.append('\"\"')
@@ -312,7 +330,7 @@ class ClickCompleter(Completer):
                                 return '<b>[</b>'
                             elif len(used_types):
                                 if (len(used_types) < len(option.literal_tuple_type)):
-                                    return '<style {}>{}</style>'.format(colors.COMPLETION_LITERAL_TUPLE_TYPE_CURRENT, html_escape(str(option.literal_tuple_type[0])))
+                                    return '<style {}>{}</style>'.format(colors.COMPLETION_LITERAL_TUPLE_TYPE_CURRENT, html_escape(str(option.literal_tuple_type[len(used_types) - 1])))
                                 else:
                                     return '<b>]</b>'
                             else: 
@@ -320,6 +338,7 @@ class ClickCompleter(Completer):
                                     return '<style {}>{}</style>'.format(colors.COMPLETION_LITERAL_TUPLE_TYPE_CURRENT, html_escape(str(option.literal_tuple_type[len(used_types) - 1])))
                                 else:
                                     return '<style {}>{}</style>'.format(colors.COMPLETION_LITERAL_TUPLE_TYPE_CURRENT, html_escape(str(option.literal_tuple_type[0])))
+
 
                         word_json = get_valid_json(word)
                         if not word_json: word_json = []
@@ -329,11 +348,6 @@ class ClickCompleter(Completer):
                         used_types = get_tuple_displaylist(word_json, False)
                         remaining_types = get_tuple_displaylist(word_json)
                         vals = get_tuple_values(used_types, word_json)
-
-                        # print()
-                        # print(word_json)
-                        # print(used_types)
-                        # print(remaining_types)
 
                         disp_val = get_tuple_value_display(used_types, word_json)
 
@@ -350,13 +364,10 @@ class ClickCompleter(Completer):
                         elif len(used_types):
                             disp = disp.replace(used_types[0], '{}{}{}'.format(Current_Tag_Begin, used_types[0], Current_Tag_End))
 
-                        # print(disp)
-                        # print(disp_val)
-
-                        return (vals, HTML(disp_val), HTML(disp))
+                        return (vals, HTML(disp_val), HTML(disp), index + mod)
 
 
-                    # Recommend Option Choices
+                    # Recommend Option Parameters
 
                     if len(obj['_options']):
                         option = get_option(true_option)
@@ -367,6 +378,7 @@ class ClickCompleter(Completer):
                                 isBool = False
 
                                 if not option.literal:
+                                    # Option Parmeter is standard
 
                                     if option.type.name == 'choice':
                                         isChoice = True
@@ -393,34 +405,48 @@ class ClickCompleter(Completer):
                                             )
 
                                 else:
+                                    # Option Parameter is a Typed Tuple
+
                                     if option.literal_tuple_type:
+                                        def fixTupleSpacing(val):
+                                            val = re.sub(r"(\[[\s])", '[', val)
+                                            val = re.sub(r"([\s]\])", ']', val)
+                                            val = re.sub(r"(\[,)", ']', val)
+                                            val = re.sub(r"(,\])", ']', val)
+                                            val = re.sub(r"(\",\")", "\", \"", val)
+                                            val = re.sub(r"([,]{1,999}.(?<=,))", ',', val)
+                                            return val
+
+                                        mod = 1
                                         orig_tuple = ClickCompleter.get_current_tuple_from_line(line)
                                         true_tuple = re.sub(r"((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$", '', orig_tuple)
 
-                                        mod = 1
+                                        if true_tuple.endswith(']'): return
                                         # if re.search(r"(((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$)|((\"[\s]*,[\s]*\")(?![\w|\W]*\"))", orig_tuple): mod = 1
 
                                         try:
                                             completion_data = get_literal_tuple_display(option, true_tuple, mod)
                                         except Exception as e:
-                                            print(e)
+                                            # print(e)
                                             return
 
                                         values = completion_data[0]
                                         disp = completion_data[1]
                                         disp_meta = completion_data[2]
+                                        index = completion_data[3]
 
                                         if len(values) == 1:
+                                            if (not values[0] == ']' and not values[0] == '[') and (index + mod < len(option.literal_tuple_type)):
+                                                values[0] += ','
                                             yield Completion(
-                                                orig_tuple + (values[0] if not values[0] == '*' else 'dd'),
+                                                fixTupleSpacing(orig_tuple + (values[0])),
                                                 start_position=-len(orig_tuple),
                                                 display=disp,
                                                 display_meta=disp_meta
                                             )
                                         elif len(values):
+
                                             i = 0
-                                            curVal = ''
-                                            
                                             tmp = word.rstrip()
                                             tmp = re.sub(r"((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$", '', tmp)
                                             if not tmp.endswith(']'): tmp += ']'
@@ -428,16 +454,15 @@ class ClickCompleter(Completer):
                                             try: tmp_words = shlex.split(tmp, posix=False)
                                             except: tmp_words = tmp.split(' ')
 
-                                            if len(tmp_words): curVal = tmp_words[len(tmp_words) - 1]
-                                            if len(tmp_words) == 1 and curVal.startswith('['): curVal.replace('[', '', 1)
-
                                             for value in values:
-                                                # if not curVal or value.startswith(curVal):
                                                 tag = get_option_literal_tuple_display_tag(option.literal_tuple_type[i], value)
 
+                                                if (not value == ']' and not value == '[') and (index + mod < len(option.literal_tuple_type)):
+                                                    value += ','
+
                                                 yield Completion(
-                                                    value,
-                                                    start_position=-len(word),
+                                                    fixTupleSpacing(orig_tuple + (value)),
+                                                    start_position=-len(orig_tuple),
                                                     display= HTML("<{}>{}</{}>".format(
                                                         tag,
                                                         value,
@@ -475,7 +500,6 @@ class ClickCompleter(Completer):
                     if len(obj['_arguments']):
                         nargs = len(words) - len(current_key)
 
-                        
                         def AnalyzeOptions():
                             option_names = get_option_names()
                             ret = 0
@@ -589,7 +613,6 @@ def BuildCompletionTree(ctx: click.Context):
         command = ctx.command if isinstance(ctx, click.Context) else ctx
         ret = []
 
-        
         def get_arg_values(param):
             if param.type.name == 'choice' or (param.choices and 'Choice' in str(type(param.choices))): 
                 return param.type.choices if param.type.name == 'choice' else param.choices.choices
@@ -617,6 +640,7 @@ def BuildCompletionTree(ctx: click.Context):
                         ret.append((name, param, values))
             except: continue
         return ret
+
 
     # Recursive function to build completion dictionary
     

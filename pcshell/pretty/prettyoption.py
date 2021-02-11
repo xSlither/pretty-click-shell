@@ -9,8 +9,9 @@ class PrettyOption(click.Option):
     def __init__(self, param_decls, choices=None, literal=None, literal_tuple_type: List[type] = None, **attrs):
         super(PrettyOption, self).__init__(param_decls, **attrs)
         self.choices = choices
-        self.literal = literal
+
         self.literal_tuple_type = literal_tuple_type
+        self.literal = literal or self.literal_tuple_type
 
 
     def get_help_record(self, ctx):
@@ -35,7 +36,8 @@ class PrettyOption(click.Option):
                         if not ctx.resilient_parsing:
                             raise
 
-        else:
+        elif len(self.literal_tuple_type):
+
             def parse_array(line: str) -> list:
                 try:
                     if line.startswith('[') and line.endswith(']'):
@@ -50,8 +52,8 @@ class PrettyOption(click.Option):
                         if arg[:-1].replace('.', '', 1).isdigit() or (arg[:-1].lower() == 'true' or arg[:-1].lower() == 'false'):
                             ret += "{}, ".format(arg[:-1])
                         else:
-                            ret += '"{}"", '.format(arg[:-1])
-                    return "{}]".format(ret.rstrip()[:-2])
+                            ret += '"{}", '.format(arg[:-1])
+                    return "{}]".format(ret.rstrip()[:-1])
                 return ret
 
             def parse_value(val: str) -> str:
@@ -89,6 +91,7 @@ class PrettyOption(click.Option):
                         break
 
                 if not valid: raise click.BadParameter('Tuple type does not match.\n\n\tProvided: {}\n\tExpected: {}'.format(value, self.literal_tuple_type))
+
 
         check_tuple()
         if self.expose_value:
