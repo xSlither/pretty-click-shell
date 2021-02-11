@@ -1,5 +1,6 @@
 import click
 import re
+import shlex
 
 from pygments.lexer import RegexLexer, bygroups
 from pygments.token import (
@@ -16,7 +17,7 @@ from pygments.token import (
 )
 
 from . import globals as globs
-from ._completion import COMPLETION_TREE, deep_get
+from ._completion import COMPLETION_TREE, deep_get, ClickCompleter
 
 
 
@@ -68,6 +69,8 @@ def command_lexer(lexer, match):
     obj = deep_get(COMPLETION_TREE, *current_key)
     obj2 = deep_get(COMPLETION_TREE, *words)
 
+    true_option = ClickCompleter.get_true_option_from_line(line)
+
 
     def get_parameter_token():
         def get_option(name: str):
@@ -81,7 +84,7 @@ def command_lexer(lexer, match):
             return re.findall(expression, line)    
 
         if len(obj['_options']):
-            option = get_option(lastword)
+            option = get_option(true_option) #lastword
             if option:
                 if not (option.is_bool_flag or option.is_flag):
                     values = []
@@ -104,9 +107,11 @@ def command_lexer(lexer, match):
                     # Verified Option Parameter
                     if isChoice and word in values: return Name.Attribute
                     elif isChoice: return Name.InvalidCommand
+
                     elif isBool and word in values: return Keyword
                     elif isBool: return Name.InvalidCommand
-                    else: Text
+
+                    else: return Text
 
 
         nargs = (len(words) - len(current_key)) - 1
@@ -143,7 +148,7 @@ def command_lexer(lexer, match):
                 elif isBool and word in values: return Keyword
                 elif isBool: return Name.InvalidCommand
 
-                else: Text
+                else: return Text
 
             else: return Name.InvalidCommand # Invalid Argument
 
