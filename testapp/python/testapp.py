@@ -169,6 +169,7 @@ def test(arg1, opt1, opt2):
 @api.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=False)
 @pcshell.option('--date', type=str, callback=VerifyDate, prompt='Effective Date', help="Some argument for this command")
 @pcshell.add_options(option_useDevRegion)
+@pcshell.repeatable
 def test2(date, dev):
     """Some Other API Command"""
     if IsShell: click.echo('Effective Date was "{}", and DEV Mode = "{}"'.format(date, dev))
@@ -184,18 +185,25 @@ def test2(date, dev):
 tuple_test_choice = pcshell.types.Choice(['choice1', 'choice2'], display_tags=['style fg=#d7ff00'])
 
 @multi.command(['tup', 'tuple'], context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
-@pcshell.option('--t', default=[], literal_tuple_type=[str, float, bool, tuple_test_choice])
+@pcshell.option('--t', default=[], literal_tuple_type=[str, float, bool, tuple_test_choice], help='A typed tuple literal option')
+@pcshell.repeatable
 def test_tuple(t):
-    """Test Tuple Completion"""
+    """Test Literal Tuple Completion"""
     if IsShell:
         click.echo('Provided Parameter: %s' % str(t))
         click.echo('Parameter Type is: %s' % type(t))
     return t
 
 @multi.command(['click_tuple', 'clicktup'], context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
-@pcshell.option('--t', default=(None, None), type=(str, str))
-def test_click_tuple(t):
+@pcshell.option('--t', default=(None, None), type=(str, tuple_test_choice), help='A click tuple type option')
+@pcshell.argument('test', type=int, help='An integer argument')
+@pcshell.repeatable
+def test_click_tuple(test, t):
     """Test Click Tuple Completion"""
+    if IsShell:
+        click.echo('Provided Tuple: %s' % str(t))
+        click.echo('Provided Argument: %s' % test)
+    return t
 
 
 #--------------------------------------------
@@ -218,6 +226,7 @@ def some_other_callback(ctx: click.Context, param, value):
 @someshell.command(context_settings=CONTEXT_SETTINGS)
 @pcshell.option('--opt1', is_flag=True, callback=some_other_callback, help='Some Flag')
 @pcshell.option('--opt2', is_flag=True, is_eager=True, hidden=True, callback=some_callback, help='This help text should never be displayed')
+@pcshell.repeatable
 def test(opt1, opt2):
     """Some Sub-Shell Command"""
     if IsShell:
@@ -233,6 +242,7 @@ def group():
 
 @group.command(context_settings=CONTEXT_SETTINGS)
 @pcshell.argument('choice', type=pcshell.types.Choice(['blue', 'red'], display_tags=['ansiblue', 'ansired']))
+@pcshell.repeatable
 def cmd(choice):
     """Some Sub-Command of the Sub-Shell"""
     if IsShell: click.echo('Argument was: "%s"' % choice)

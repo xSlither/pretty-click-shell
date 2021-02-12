@@ -18,6 +18,7 @@ from pygments.token import (
 
 from . import globals as globs
 from ._completion import COMPLETION_TREE, deep_get, ClickCompleter
+from ._utils import HasKey
 
 
 
@@ -69,8 +70,6 @@ def command_lexer(lexer, match):
     obj = deep_get(COMPLETION_TREE, *current_key)
     obj2 = deep_get(COMPLETION_TREE, *words)
 
-    true_option = ClickCompleter.get_true_option_from_line(line)
-
 
     def get_parameter_token():
         def get_option(name: str):
@@ -84,7 +83,8 @@ def command_lexer(lexer, match):
             return re.findall(expression, line)    
 
         if len(obj['_options']):
-            option = get_option(true_option) #lastword
+            true_option_name = ClickCompleter.get_true_option_from_line(parsed_line)
+            option = get_option(true_option_name) if true_option_name else None
             if option:
                 if not (option.is_bool_flag or option.is_flag):
                     values = []
@@ -92,6 +92,7 @@ def command_lexer(lexer, match):
                     isBool = False
 
                     if not '.Tuple object' in str(option.type):
+                        # Standard Option Parameter
                         if option.type.name == 'choice': 
                             values = [c for c in option.type.choices if c]
                             isChoice = True
@@ -102,7 +103,29 @@ def command_lexer(lexer, match):
                             isBool = True
                             values = ['true', 'false']
                     else:
-                        pass
+                        # Click Tuple Type
+                        def get_option_args():
+                            ret = []
+                            for arg in reversed(parsed_line.rstrip().split(' ')):
+                                if arg == true_option_name: break
+                                ret.append(arg)
+                            return ret
+
+                        option_args = get_option_args()
+                        if len(option_args) > option.nargs: return Name.InvalidCommand
+
+                        type_obj = option.type.types[len(option_args) - 1]
+
+                        if type_obj:
+                            type_name = type_obj.name
+                            if type_name == 'choice':
+                                values = [c for c in type_obj.choices if c]
+                                isChoice = True
+                            elif type_name == 'boolean':
+                                isBool = True
+                                values = ['true', 'false']
+                        else: return Name.InvalidCommand
+
 
                     # Verified Option Parameter
                     if isChoice and word in values: return Name.Attribute
@@ -114,8 +137,6 @@ def command_lexer(lexer, match):
                     else: return Text
 
 
-        nargs = (len(words) - len(current_key)) - 1
-
         def AnalyzeOptions():
             option_names = get_option_names()
             ret = 0
@@ -124,11 +145,21 @@ def command_lexer(lexer, match):
                 if option:
                     if not (option.is_bool_flag or option.is_flag): 
                         ret += 2
-                        if '.Tuple object' in str(option.type):
-                            ret += option.nargs - 1 if option.nargs else 0
+                        if HasKey('nargs', option) and option.nargs > 1:
+                            ret += (option.nargs - 1)
             return ret
 
+        def AnalyzeArgs():
+            ret = 0
+            if len(obj['_arguments']):
+                for arg in obj['_arguments']:
+                    if HasKey('nargs', arg) and arg.nargs > 1:
+                        ret += (arg.nargs - 1)
+            return ret
+
+        nargs = (len(words) - len(current_key)) - 1
         nargs = nargs - AnalyzeOptions()
+        # nargs -= AnalyzeArgs()
 
         if len(obj['_arguments']):
             if nargs < len(obj['_arguments']):
@@ -215,20 +246,23 @@ class ShellLexer(RegexLexer):
             # Symbols / Integers
             (r"\-?[0-9]+", Number.Integer),
             (r"(\||\&|\$|\@|\%|\#|\!|\^|\*|\(|\)|\{|\}|\[|\])", Number.Operator),
+            # (r"(\\[\w]{1,999})", Number.Operator),
 
             # Options
             (r"--(?<=\s--)help+(?=\s|$)", Name.Help),
             (r"-(?<=\s-)h+(?=\s|$)", Name.Help),
             (r"--(?<=\s--)[a-zA-Z0-9]+(?=\s|$)", Name.Tag),
 
-            # Commands
+            # Commands, Groups, and Parameters
             # (r"(?<=^)*(((?<=\s)|^)(:?[a-zA-Z0-9_\-][a-zA-Z0-9_\-]*)($|\s+))", command_lexer),
             (r"(?<=^)*(((?<=\s)|^)(?:\-\-|(\w*[a-zA-Z0-9_\-][a-zA-Z0-9_\-]*)($|\s+)))", command_lexer),
 
             # Strings
             (r"'(''|[^'])*'", String.Single),
+            (r"`(``|[^`])*`", String.Single),
             (r'"(""|[^"])*"', String.Symbol),
             (r"[;:()\[\],\.]", Punctuation),
+            
         ],
         str("query"): [
             (r"\s+", Text),

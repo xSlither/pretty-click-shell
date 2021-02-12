@@ -52,7 +52,7 @@ class ClickCompleter(Completer):
         tmp = re.sub(r"((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$", '', tmp)
 
         def read_words(words: List[str]) -> str:
-            for word in words: 
+            for word in reversed(words): 
                 if word.startswith('--'): return word
             return None
 
@@ -246,10 +246,20 @@ class ClickCompleter(Completer):
                         Current_Tag_Begin = '<u><b>'
                         Current_Tag_End = '</b></u>'
 
+                        def fix_json_string(tmp) -> str:
+                            """Transforms all \'\' and \`\` strings into \"\" strings"""
+                            for match in re.finditer(r"(['`])(?:(?=(\\?))\2.)*?(\1)", tmp):
+                                m = tmp[match.span()[0]: match.span()[1]]
+                                if (m.startswith('"') or m.startswith("'") or m.startswith('`')) and (m.endswith('"') or m.endswith("'") or m.endswith('`')):
+                                    tmp = tmp[:match.start()] + ('"%s"' % m[1:-1]) + tmp[match.span()[1]:]
+                            return tmp
+
                         def get_valid_json(w: str, recurse=False) -> Union[list, None]:
                             tmp = w.rstrip()
                             tmp = re.sub(r"((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$", '', tmp)
                             tmp = re.sub(r"([,]{1,999}.(?<=,))", ',', tmp)
+
+                            tmp = fix_json_string(tmp)
 
                             if tmp.startswith('['):
                                 try:
@@ -370,8 +380,28 @@ class ClickCompleter(Completer):
                     # Recommend Option Parameters
 
                     if len(obj['_options']):
+                        valid = True
                         option = get_option(true_option)
+
+                        def get_option_args():
+                            ret = []
+                            for arg in reversed(original_words):
+                                if arg == true_option: break
+                                ret.append(arg)
+                            return ret
+
                         if option:
+                            option_nargs = 1
+                            option_args = get_option_args()
+
+                            if HasKey('nargs', option): option_nargs = option.nargs
+                            if len(option_args):
+                                if not option.literal_tuple_type:
+                                    if len(option_args) >= option_nargs: valid = False
+                                else:
+                                    if ']' in option_args[0]: valid = False
+
+                        if option and valid:
                             if not (option.is_bool_flag or option.is_flag):
                                 values = []
                                 isChoice = False
@@ -379,16 +409,62 @@ class ClickCompleter(Completer):
 
                                 if not option.literal:
                                     # Option Parmeter is standard
+                                    disp_meta = None
 
-                                    if option.type.name == 'choice':
-                                        isChoice = True
-                                        values = [c for c in option.type.choices if c]
-                                    elif option.choices and ('Choice' in str(type(option.choices))): 
-                                        isChoice = True
-                                        values = [c for c in option.choices.choices if c]
-                                    elif option.type.name == 'boolean': 
-                                        isBool = True
-                                        values = ['true', 'false']
+                                    if not '.Tuple object' in str(option.type):
+                                        # Standard Parameter
+                                        if option.type.name == 'choice':
+                                            isChoice = True
+                                            values = [c for c in option.type.choices if c]
+                                        elif option.choices and ('Choice' in str(type(option.choices))): 
+                                            isChoice = True
+                                            values = [c for c in option.choices.choices if c]
+                                        elif option.type.name == 'boolean': 
+                                            isBool = True
+                                            values = ['true', 'false']
+                                        elif option.type.name == 'float':
+                                            values = ['0.0']
+                                        elif option.type.name == 'integer':
+                                            values = ['0']
+                                        elif option.type.name == 'text':
+                                            values = ['""']
+
+                                        if not isChoice and not isBool:
+                                            meta_name = ('&#60;class :%s:&#62;' % option.type.name)
+                                            disp_meta = HTML("<style %s><i>%s</i></style>" % (colors.COMPLETION_OPTION_DESCRIPTION, meta_name))
+                                    else:
+                                        # Click Tuple Type
+                                        def get_option_args():
+                                            ret = []
+                                            for arg in reversed(original_words):
+                                                if arg == true_option: break
+                                                ret.append(arg)
+                                            return ret
+
+                                        option_args = get_option_args()
+                                        if len(option_args) > option.nargs:
+                                            return
+
+                                        type_obj = option.type.types[::-1][len(option_args) - 1]
+
+                                        if type_obj:
+                                            type_name = type_obj.name
+                                            if type_name == 'choice':
+                                                values = [c for c in type_obj.choices if c]
+                                                isChoice = True
+                                            elif type_name == 'boolean':
+                                                isBool = True
+                                                values = ['true', 'false']
+                                            elif type_name == 'float':
+                                                values = ['0.0']
+                                            elif type_name == 'integer':
+                                                values = ['0']
+                                            elif type_name == 'text':
+                                                values = ['""']
+
+                                        if not isChoice and not isBool:
+                                            meta_name = ('&#60;class :%s:&#62;' % type_name)
+                                            disp_meta = HTML("<style %s><i>%s</i></style>" % (colors.COMPLETION_OPTION_DESCRIPTION, meta_name))
 
                                     for value in values:
                                         if value.startswith(word):
@@ -401,7 +477,8 @@ class ClickCompleter(Completer):
                                                     tag,
                                                     value,
                                                     tag if not 'style' in tag else 'style'
-                                                ))
+                                                )),
+                                                display_meta=disp_meta
                                             )
 
                                 else:
@@ -424,11 +501,8 @@ class ClickCompleter(Completer):
                                         if true_tuple.endswith(']'): return
                                         # if re.search(r"(((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$)|((\"[\s]*,[\s]*\")(?![\w|\W]*\"))", orig_tuple): mod = 1
 
-                                        try:
-                                            completion_data = get_literal_tuple_display(option, true_tuple, mod)
-                                        except Exception as e:
-                                            # print(e)
-                                            return
+                                        try: completion_data = get_literal_tuple_display(option, true_tuple, mod)
+                                        except Exception as e: return
 
                                         values = completion_data[0]
                                         disp = completion_data[1]
@@ -498,7 +572,6 @@ class ClickCompleter(Completer):
                     # Recommend Arguments
 
                     if len(obj['_arguments']):
-                        nargs = len(words) - len(current_key)
 
                         def AnalyzeOptions():
                             option_names = get_option_names()
@@ -506,10 +579,24 @@ class ClickCompleter(Completer):
                             for oName in option_names:
                                 option = get_option('--%s' % oName)
                                 if option:
-                                    if not (option.is_bool_flag or option.is_flag): ret += 2
+                                    if not (option.is_bool_flag or option.is_flag): 
+                                        ret += 2
+                                        if HasKey('nargs', option) and option.nargs > 1:
+                                            ret += (option.nargs - 1)
                             return ret
 
+                        def AnalyzeArgs():
+                            ret = 0
+                            if len(obj['_arguments']):
+                                for arg in obj['_arguments']:
+                                    if HasKey('nargs', arg) and arg.nargs > 1:
+                                        ret += (arg.nargs - 1)
+                            return ret
+
+                        nargs = len(words) - len(current_key)
                         nargs = nargs - AnalyzeOptions()
+                        # nargs -= AnalyzeArgs()
+
                         if nargs < len(obj['_arguments']):
                             arg = obj['_arguments'][nargs - 1 if nargs > 0 else 0]
 
@@ -537,9 +624,14 @@ class ClickCompleter(Completer):
                                             ))
                                         )
                             else:
+                                val = ' '
+                                if argument.type.name == 'float': val = '0.0'
+                                if argument.type.name == 'integer': val = '0'
+                                if argument.type.name == 'text': val = '""'
+
                                 yield Completion(
-                                    ' ',
-                                    start_position=-1,
+                                    val,
+                                    start_position=0,
                                     display=HTML("<%s>%s</%s>" % (colors.COMPLETION_ARGUMENT_NAME, name, colors.COMPLETION_ARGUMENT_NAME)),
                                     display_meta=HTML("<style %s><i>%s</i></style>" % (colors.COMPLETION_ARGUMENT_DESCRIPTION, h))
                                 )

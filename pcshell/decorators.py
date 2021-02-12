@@ -22,7 +22,7 @@ def add_options(*options):
 def shell(name=None, **attrs):
     """Instantiates a new Shell instance, using the MultiCommandShell class as the default. 
     
-    Functions similar to @click.command(). Use this decorator on your top-level command in your click project
+    Functions similar to @click.command(). Use this decorator on your top-level command in your Click project
     """
     attrs.setdefault('cls', MultiCommandShell)
     return click.command(name, isShell=True, **attrs)
@@ -30,7 +30,8 @@ def shell(name=None, **attrs):
 
 def repeatable(f):
     """Captures the current context and allows it to be repeated using the "repeat" command.
-    \nPlace this decorator beneath all other click decorators, or the context will not be accurate
+    \nPlace this decorator beneath all other click decorators, or the context will not be accurate.
+    \nNot compatible with commands that use :class:`click.Tuple` parameters; use Literal Tuple Types instead.
     """
     def repeat(*args, **kwargs):
         ctx = click.get_current_context()

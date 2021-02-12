@@ -14,6 +14,8 @@ def BuildCommandString(ctx: click.Context) -> None:
 
         if ctx.params and len(ctx.params) > 0:
             for key in ctx.params:
+
+                # Boolean Parameter
                 if isinstance(ctx.params[key], bool):
                     if not key in args:
                         if ctx.params[key]: 
@@ -23,18 +25,36 @@ def BuildCommandString(ctx: click.Context) -> None:
                                     ret += ' %s' % ctx.params[key]
                     else: ret += ' {value}'.format(value=ctx.params[key])
 
+                # String Parameter
                 elif isinstance(ctx.params[key], str):
                     if not key in args:
                         if ctx.params[key]:
                             ret += ' --{key} {value}'.format(key=key, value=ctx.params[key])
                         else: ret += ' --{key} ""'.format(key=key)
-                    else: ret += ' {value}'.format(value=ctx.params[key])
+                    else: ret += ' "{value}"'.format(value=ctx.params[key])
 
+                # Password Parameter
                 elif isinstance(ctx.params[key], HiddenPassword):
                     if not key in args:
                         if ctx.params[key].password:
                             ret += ' --{key} {value}'.format(key=key, value=ctx.params[key].password)
                         else: ret += ' --{key} ""'.format(key=key)
                     else: ret += ' {value}'.format(value=ctx.params[key].password)
+
+                # Typed Tuple List Parameter
+                elif isinstance(ctx.params[key], list):
+                    def convert_list():
+                        return [
+                            str(i) if not type(i) == str and not type(i) == bool 
+                                else '"%s"' % str(i) if type(i) == str 
+                                    else str(i).lower() 
+                            for i in ctx.params[key]
+                        ]
+
+                    if not key in args:
+                        if ctx.params[key]:
+                            ret += ' --{key} [{value}]'.format(key=key, value=', '.join(convert_list()))
+                        else: ret += ' --{key} []'.format(key=key)
+                    else: ret += ' [{value}]'.format(value=', '.join(convert_list()))
 
         globs.__LAST_COMMAND__ = ret
