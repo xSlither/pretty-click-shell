@@ -57,4 +57,11 @@ def BuildCommandString(ctx: click.Context) -> None:
                         else: ret += ' --{key} []'.format(key=key)
                     else: ret += ' [{value}]'.format(value=', '.join(convert_list()))
 
+                elif isinstance(ctx.params[key], tuple):
+                    for val in ctx.params[key]:
+                        if val:
+                            ret += ' --{key} {value}'.format(key=key, value=val)
+                        else: pass
+
+
         globs.__LAST_COMMAND__ = ret
