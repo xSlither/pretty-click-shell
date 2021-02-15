@@ -186,9 +186,9 @@ tuple_test_choice = pcshell.types.Choice(['choice1', 'choice2'], display_tags=['
 
 @multi.command(['tup', 'tuple'], context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
 @pcshell.option('--t', default=[], literal_tuple_type=[str, float, bool, tuple_test_choice], help='A typed tuple literal option')
-@pcshell.argument(test, type=str, help='A string argument')
+@pcshell.argument('test', type=str, help='A string argument')
 @pcshell.repeatable
-def test_tuple(t):
+def test_tuple(t, test):
     """Test Literal Tuple Completion"""
     if IsShell:
         click.echo('Provided Parameter: %s' % str(t))

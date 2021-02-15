@@ -33,6 +33,22 @@ def BuildCommandString(ctx: click.Context) -> None:
                         else: ret += ' --{key} ""'.format(key=key)
                     else: ret += ' "{value}"'.format(value=ctx.params[key])
 
+                # Integer Parameter
+                elif isinstance(ctx.params[key], int):
+                    if not key in args:
+                        if ctx.params[key]:
+                            ret += ' --{key} {value}'.format(key=key, value=ctx.params[key])
+                        else: ret += ' --{key} 0'.format(key=key)
+                    else: ret += ' {value}'.format(value=ctx.params[key])
+
+                # Float Parameter
+                elif isinstance(ctx.params[key], float):
+                    if not key in args:
+                        if ctx.params[key]:
+                            ret += ' --{key} {value}'.format(key=key, value=ctx.params[key])
+                        else: ret += ' --{key} 0.0'.format(key=key)
+                    else: ret += ' {value}'.format(value=ctx.params[key])
+
                 # Password Parameter
                 elif isinstance(ctx.params[key], HiddenPassword):
                     if not key in args:
@@ -57,11 +73,25 @@ def BuildCommandString(ctx: click.Context) -> None:
                         else: ret += ' --{key} []'.format(key=key)
                     else: ret += ' [{value}]'.format(value=', '.join(convert_list()))
 
+                # Click Tuple Parameter
                 elif isinstance(ctx.params[key], tuple):
+                    isArg = True
+                    if not key in args: 
+                        ret += ' --{key}'.format(key=key)
+                        isArg = False
+
                     for val in ctx.params[key]:
-                        if val:
-                            ret += ' --{key} {value}'.format(key=key, value=val)
-                        else: pass
+                        if not isArg:
+                            if val:
+                                ret += ' {value}'.format(key=key, value=val)
+                            else:
+                                if isinstance(val, str):
+                                    ret += ' ""'
+                                else: ret += ' null'
+                        else:
+                            if isinstance(val, str):
+                                ret += ' "{value}"'.format(value=val)
+                            else: ret += ' {value}'.format(value=val)
 
 
         globs.__LAST_COMMAND__ = ret

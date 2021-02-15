@@ -241,7 +241,7 @@ class ShellLexer(RegexLexer):
             (r'^(repeat)\s*$', Name.Help),
 
             # Boolean
-            (r"(True|False|true|false)|((?<=\s)y|n(?=\s|$))", Keyword),
+            (r"(True|False|true|false|null|undefined|None)|((?<=\s)(y|n)(?=\s|$))", Keyword),
 
             # Symbols / Integers
             (r"\-?[0-9]+", Number.Integer),
