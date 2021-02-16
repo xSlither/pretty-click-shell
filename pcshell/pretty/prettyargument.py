@@ -29,5 +29,5 @@ class PrettyArgument(click.Argument):
         return help
 
 
-    # def handle_parse_result(self, ctx, opts, args):
-    #     return PrettyHelper.handle_parse_result(self, ctx, opts, args)
+    # def handle_parse_result(self, ctx, opts, args, seq):
+    #     return PrettyHelper.handle_parse_result(self, ctx, opts, args, seq)

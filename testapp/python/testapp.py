@@ -186,13 +186,23 @@ tuple_test_choice = pcshell.types.Choice(['choice1', 'choice2'], display_tags=['
 
 @multi.command(['tup', 'tuple'], context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
 @pcshell.option('--t', default=[], literal_tuple_type=[str, float, bool, tuple_test_choice], help='A typed tuple literal option')
+@pcshell.option('--c', default=[], literal_tuple_type=[bool, bool], help='A second typed tuple literal option', multiple=True)
 @pcshell.argument('test', type=str, help='A string argument')
+@pcshell.argument('test2', type=int, help='An int argument')
+@pcshell.argument('test3', type=float, help='A float argument')
 @pcshell.repeatable
-def test_tuple(t, test):
+def test_tuple(t, test, test2, test3, c):
     """Test Literal Tuple Completion"""
     if IsShell:
-        click.echo('Provided Parameter: %s' % str(t))
-        click.echo('Parameter Type is: %s' % type(t))
+        if t:
+            click.echo('\n\tProvided Optional Tuple 1: %s' % str(t))
+            click.echo('\tOptional Tuple Type is: %s' % type(t))
+        if c:
+            click.echo('\n\tProvided Optional Tuple 2: %s' % str(c))
+            click.echo('\tOptional Tuple Type is: %s' % type(c))
+        click.echo('\n\tArgument 1: %s' % test)
+        click.echo('\tArgument 2: %s' % test2)
+        click.echo('\tArgument 3: %s' % test3)
     return t
 
 @multi.command(['click_tuple', 'clicktup'], context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
@@ -202,8 +212,9 @@ def test_tuple(t, test):
 def test_click_tuple(test, t):
     """Test Click Tuple Completion"""
     if IsShell:
-        click.echo('Provided Tuple: %s' % str(t))
-        click.echo('Provided Argument: %s' % test)
+        click.echo('\n\tProvided Tuple: %s' % str(t))
+        click.echo('\tTuple Type is: %s' % type(t))
+        click.echo('\n\tProvided Argument: %s' % test)
     return t
 
 

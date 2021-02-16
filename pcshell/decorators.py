@@ -30,8 +30,7 @@ def shell(name=None, **attrs):
 
 def repeatable(f):
     """Captures the current context and allows it to be repeated using the "repeat" command.
-    \nPlace this decorator beneath all other click decorators, or the context will not be accurate.
-    \nNot compatible with commands that use :class:`click.Tuple` parameters; use Literal Tuple Types instead.
+    \nPlace this decorator beneath all other click decorators, or the context will not be accurate
     """
     def repeat(*args, **kwargs):
         ctx = click.get_current_context()

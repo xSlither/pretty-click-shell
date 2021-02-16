@@ -2,6 +2,7 @@ from typing import List
 
 import os
 import sys
+import re
 import json
 
 import click
@@ -203,7 +204,7 @@ class PrettyHelper:
 
 
     @staticmethod
-    def handle_parse_result(self, ctx, opts, args):
+    def handle_parse_result(self, ctx: click.Context, opts, args: List[str], seq: int):
         if not self.literal:
             with augment_usage_errors(ctx, param=self):
                 value = self.consume_value(ctx, opts)
@@ -221,46 +222,104 @@ class PrettyHelper:
                             raise
 
         elif len(self.literal_tuple_type):
+            value = None
 
             def parse_array(line: str) -> list:
                 try:
                     if line.startswith('[') and line.endswith(']'):
-                        return line
+                        tmp = line.rstrip()
+                        tmp = re.sub(r"((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$", '', tmp)
+                        if not tmp.endswith(']'): tmp += ']'
+                        return tmp
                 except: pass
                 
                 if line.rstrip().endswith(','): 
                     return '%s]' % line.rstrip()[:-1]
-                raise click.BadParameter('Invalid Python Literal Provided: %s' % str(value))
+                raise click.BadParameter('Invalid Python Literal Provided: %s' % line)
 
-            def parse_args() -> str:
+            def parse_args(args: List[str]) -> str:
                 ret = ''
                 if len(args):
+
                     for arg in args:
                         if arg[:-1].replace('.', '', 1).isdigit() or (arg[:-1].lower() == 'true' or arg[:-1].lower() == 'false'):
                             ret += "{}, ".format(arg[:-1])
                         else:
-                            ret += '"{}", '.format(arg[:-1])
-                    return "{}]".format(ret.rstrip()[:-1])
+                            if not arg.endswith(']'): ret += '"{}", '.format(arg[:-1])
+                            else: 
+                                ret += '"{}"'.format(arg[:-1])
+                                break
+
+                    return "{}]".format(ret.rstrip())
                 return ret
 
             def parse_value(val: str) -> str:
-                val = val[1: -1]
-                if val.replace('.', '', 1).isdigit() or (val.lower() == 'true' or val.lower() == 'false'): return val
-                else: return '"%s"' % val
+                if val:
+                    val = val[1: -1]
+                    if val.replace('.', '', 1).isdigit() or (val.lower() == 'true' or val.lower() == 'false'): return val
+                    else: return '"%s"' % val
+                else: return None
 
-
-            with augment_usage_errors(ctx, param=self):
+            def extract_tuple(value: str, args: List[str]) -> list:
                 try:
-                    value = parse_value(self.consume_value(ctx, opts))
-                    value = parse_array('[{}, {}'.format(value, parse_args()))
-                    value = json.loads(value)
+                    if value:
+                        if value == '[,': value = '["",'
 
-                    args = None
+                        if value[1:-1] == '""' or (value[1:-1].replace('.', '', 1).isdigit() or (value[1:-1].lower() == 'true' or value[1:-1].lower() == 'false')):
+                            value = parse_array('{} {}'.format(value, parse_args(args)))
+                        else:
+                            value = parse_array('["{}", {}'.format(value[1:-1], parse_args(args)))
+
+                        value = json.loads(value)
+                        
+                    return value
                 except Exception as e:
+                    print(e)
                     raise click.BadParameter('Invalid Python Literal Provided: %s' % str(value))
 
 
-        def check_tuple():
+            #----------------------------------------------------------------------------
+            with augment_usage_errors(ctx, param=self):
+                exists = self.consume_value(ctx, opts)
+
+                # ########################################
+                # TODO Add support for "multiple" option #
+                # ########################################
+
+                if exists:
+                    i = 0
+                    for optval in opts:
+                        if opts[optval].startswith('['):
+                            if optval == self.name:
+                                break
+                            i += 1
+
+                    i -= seq
+                    true_args = []
+                    used_args = []
+                    ii = 0
+                    for arg in args:
+                        if arg.endswith(']'): 
+                            if not ii == i: true_args.append(arg)
+                            else: used_args.append(arg)
+                            ii += 1
+                            continue
+                    
+                        if ii == i: 
+                            used_args.append(arg)
+                            continue
+                        true_args.append(arg)
+
+                    value = (extract_tuple(opts[optval], used_args))
+
+                    seq += 1
+                    args = true_args
+                
+                    # print('--------------\n%s\n--------------\n' % args)
+            #----------------------------------------------------------------------------
+
+
+        def check_tuple(value):
             valid = False
             if self.literal and self.literal_tuple_type:
                 if len(value) == len(self.literal_tuple_type):
@@ -276,12 +335,18 @@ class PrettyHelper:
 
                         valid = False
                         break
+                else:
+                    if len(value) > len(self.literal_tuple_type):
+                        raise click.BadParameter('Too many arguments')
+                    raise click.BadParameter('Please check for incorrect tuple sizes & missing or invalid arguments')
 
                 if not valid: raise click.BadParameter('Tuple type does not match.\n\n\tProvided: {}\n\tExpected: {}'.format(value, self.literal_tuple_type))
 
 
-        check_tuple()
+        # print(value)
+        if value: check_tuple(value)
+
         if self.expose_value:
             ctx.params[self.name] = value
 
-        return value, args
+        return value, args, seq

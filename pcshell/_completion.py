@@ -77,17 +77,24 @@ class ClickCompleter(Completer):
         tmp = line.rstrip()
         tmp = re.sub(r"((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$", '', tmp)
 
-        no_quotes = re.sub('".*?"', '', tmp)
-        index = no_quotes.rfind('[', 0)
+        # no_quotes = re.sub('".*?"', '', tmp)
+        index = tmp.rfind('[', 0)
+        index2 = tmp.rfind(']', index) if index >= 0 else -1
 
-        return line[index:]
+        ret = line[index:] if not index2 > index else None
+        return ret
+
 
 
     def get_completions(self, document, complete_event):
         word: str = document.get_word_before_cursor()
         line: str = document.current_line_before_cursor
 
-        original_words = line.rstrip().split(' ')
+        original_line = line.rstrip()
+        original_words = original_line.split(' ')
+        original_words_prev = original_words.copy()
+        original_words_prev.pop()
+
         line = ((' '.join(globs.__SHELL_PATH__) + ' ') if len(globs.__SHELL_PATH__) else '') + line
 
         words = line.rstrip().split(' ')
@@ -401,11 +408,16 @@ class ClickCompleter(Completer):
                                 else:
                                     if ']' in option_args[0]: valid = False
 
+                            if (not option.multiple) and (original_words_prev.count('--%s' % option.name) > 1):
+                                valid = False
+
                         if option and valid:
                             if not (option.is_bool_flag or option.is_flag):
                                 values = []
                                 isChoice = False
                                 isBool = False
+
+                                invalid = False
 
                                 if not option.literal:
                                     # Option Parmeter is standard
@@ -434,12 +446,6 @@ class ClickCompleter(Completer):
                                             disp_meta = HTML("<style %s><i>%s</i></style>" % (colors.COMPLETION_OPTION_DESCRIPTION, meta_name))
                                     else:
                                         # Click Tuple Type
-                                        def get_option_args():
-                                            ret = []
-                                            for arg in reversed(original_words):
-                                                if arg == true_option: break
-                                                ret.append(arg)
-                                            return ret
 
                                         option_args = get_option_args()
                                         if len(option_args) > option.nargs:
@@ -494,59 +500,71 @@ class ClickCompleter(Completer):
                                             val = re.sub(r"([,]{1,999}.(?<=,))", ',', val)
                                             return val
 
+                                        def lastword_is_option() -> bool:
+                                            l = len(original_line)
+                                            return (original_line[l - 3] == '-' and original_line[l - 2] == '-' 
+                                                and original_line[l - 1] == option.name) if l > 2 else False
+
                                         mod = 1
                                         orig_tuple = ClickCompleter.get_current_tuple_from_line(line)
-                                        true_tuple = re.sub(r"((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$", '', orig_tuple)
+                                        true_tuple = orig_tuple
 
-                                        if true_tuple.endswith(']'): return
+                                        if not orig_tuple:
+                                            if lastword_is_option(): orig_tuple = ' '
+                                            else: invalid = True
+
+                                        if orig_tuple: true_tuple = re.sub(r"((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$", '', orig_tuple)
+
+                                        if not invalid and true_tuple.endswith(']'): invalid = True
                                         # if re.search(r"(((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$)|((\"[\s]*,[\s]*\")(?![\w|\W]*\"))", orig_tuple): mod = 1
 
-                                        try: completion_data = get_literal_tuple_display(option, true_tuple, mod)
-                                        except Exception as e: return
+                                        if not invalid:
+                                            try: completion_data = get_literal_tuple_display(option, true_tuple, mod)
+                                            except Exception as e: return
 
-                                        values = completion_data[0]
-                                        disp = completion_data[1]
-                                        disp_meta = completion_data[2]
-                                        index = completion_data[3]
+                                            values = completion_data[0]
+                                            disp = completion_data[1]
+                                            disp_meta = completion_data[2]
+                                            index = completion_data[3]
 
-                                        if len(values) == 1:
-                                            if (not values[0] == ']' and not values[0] == '[') and (index + mod < len(option.literal_tuple_type)):
-                                                values[0] += ','
-                                            yield Completion(
-                                                fixTupleSpacing(orig_tuple + (values[0])),
-                                                start_position=-len(orig_tuple),
-                                                display=disp,
-                                                display_meta=disp_meta
-                                            )
-                                        elif len(values):
-
-                                            i = 0
-                                            tmp = word.rstrip()
-                                            tmp = re.sub(r"((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$", '', tmp)
-                                            if not tmp.endswith(']'): tmp += ']'
-
-                                            try: tmp_words = shlex.split(tmp, posix=False)
-                                            except: tmp_words = tmp.split(' ')
-
-                                            for value in values:
-                                                tag = get_option_literal_tuple_display_tag(option.literal_tuple_type[i], value)
-
-                                                if (not value == ']' and not value == '[') and (index + mod < len(option.literal_tuple_type)):
-                                                    value += ','
-
+                                            if len(values) == 1:
+                                                if (not values[0] == ']' and not values[0] == '[') and (index + mod < len(option.literal_tuple_type)):
+                                                    values[0] += ','
                                                 yield Completion(
-                                                    fixTupleSpacing(orig_tuple + (value)),
+                                                    fixTupleSpacing(orig_tuple + (values[0])),
                                                     start_position=-len(orig_tuple),
-                                                    display= HTML("<{}>{}</{}>".format(
-                                                        tag,
-                                                        value,
-                                                        tag if not 'style' in tag else 'style'
-                                                    )),
+                                                    display=disp,
                                                     display_meta=disp_meta
                                                 )
-                                                i += 1
+                                            elif len(values):
+
+                                                i = 0
+                                                tmp = word.rstrip()
+                                                tmp = re.sub(r"((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$", '', tmp)
+                                                if not tmp.endswith(']'): tmp += ']'
+
+                                                try: tmp_words = shlex.split(tmp, posix=False)
+                                                except: tmp_words = tmp.split(' ')
+
+                                                for value in values:
+                                                    tag = get_option_literal_tuple_display_tag(option.literal_tuple_type[i], value)
+
+                                                    if (not value == ']' and not value == '[') and (index + mod < len(option.literal_tuple_type)):
+                                                        value += ','
+
+                                                    yield Completion(
+                                                        fixTupleSpacing(orig_tuple + (value)),
+                                                        start_position=-len(orig_tuple),
+                                                        display= HTML("<{}>{}</{}>".format(
+                                                            tag,
+                                                            value,
+                                                            tag if not 'style' in tag else 'style'
+                                                        )),
+                                                        display_meta=disp_meta
+                                                    )
+                                                    i += 1
                                 # --------------------------------------------------------------------------------------------------------------------
-                                return
+                                if not invalid: return
 
 
                     # Recommend Options
@@ -559,7 +577,7 @@ class ClickCompleter(Completer):
                             if name == '--help' or name == '-h': continue
                             if option.hidden: continue
 
-                            if (not name in line) or option.multiple:
+                            if (not original_words_prev.count('--%s' % option.name) > 0) or option.multiple:
                                 if name.startswith(word):
                                     h = html_escape(option.help) if option.help else ''
                                     yield Completion(
@@ -593,11 +611,38 @@ class ClickCompleter(Completer):
                                         ret += (arg.nargs - 1)
                             return ret
 
-                        nargs = len(words) - len(current_key)
+                        def check_literal():
+                            def check_tuple(i: int) -> int:
+                                n = 0
+                                if original_words[i].startswith('['):
+                                    for item in original_words[i:]:
+                                        n += 1
+                                        if item.endswith(']'): break
+                                return n
+
+                            ret = 0
+                            ii = 0
+                            for w in range(0, len(original_words)):
+                                if ii > w: continue
+
+                                if original_words[w].startswith('--'):
+                                    n = check_tuple(ii + 1)
+                                    if n > 0:
+                                        ret += n - 1
+                                        ii += n + 1
+                                        continue
+                                ii += 1
+                            return ret
+
+
+                        words_len = len(words) - len(current_key)
+                        words_len -= check_literal()
+
+                        nargs = words_len + 1
                         nargs = nargs - AnalyzeOptions()
                         # nargs -= AnalyzeArgs()
 
-                        if nargs < len(obj['_arguments']):
+                        if nargs - 1 < len(obj['_arguments']):
                             arg = obj['_arguments'][nargs - 1 if nargs > 0 else 0]
 
                             name = arg[0]

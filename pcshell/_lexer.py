@@ -86,7 +86,7 @@ def command_lexer(lexer, match):
             true_option_name = ClickCompleter.get_true_option_from_line(parsed_line)
             option = get_option(true_option_name) if true_option_name else None
             if option:
-                if not (option.is_bool_flag or option.is_flag):
+                if (not (option.is_bool_flag or option.is_flag)) and not option.literal_tuple_type:
                     values = []
                     isChoice = False
                     isBool = False
@@ -157,12 +157,40 @@ def command_lexer(lexer, match):
                         ret += (arg.nargs - 1)
             return ret
 
-        nargs = (len(words) - len(current_key)) - 1
+        def check_literal():
+            def check_tuple(i: int) -> int:
+                n = 0
+                try:
+                    if original_words[i].startswith('['):
+                        for item in original_words[i:]:
+                            n += 1
+                            if item.endswith(']'): break
+                except: return 0
+                return n
+
+            ret = 0
+            ii = 0
+            for w in range(0, len(original_words)):
+                if ii > w: continue
+
+                if original_words[w].startswith('--'):
+                    n = check_tuple(ii + 1)
+                    if n > 0:
+                        ret += n - 1
+                        ii += n + 1
+                        continue
+                ii += 1
+            return ret
+
+        words_len = len(words) - len(current_key)
+        words_len -= check_literal()
+
+        nargs = words_len
         nargs = nargs - AnalyzeOptions()
         # nargs -= AnalyzeArgs()
 
         if len(obj['_arguments']):
-            if nargs < len(obj['_arguments']):
+            if nargs - 1 < len(obj['_arguments']):
                 arg = obj['_arguments'][nargs - 1 if nargs > 0 else 0]
 
                 name = arg[0]

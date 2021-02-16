@@ -23,5 +23,5 @@ class PrettyOption(click.Option):
         return super(PrettyOption, self).get_help_record(ctx)
 
 
-    def handle_parse_result(self, ctx, opts, args):
-        return PrettyHelper.handle_parse_result(self, ctx, opts, args)
+    def handle_parse_result(self, ctx, opts, args, seq):
+        return PrettyHelper.handle_parse_result(self, ctx, opts, args, seq)
