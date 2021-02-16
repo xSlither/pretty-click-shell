@@ -1,9 +1,9 @@
-#  ANCHOR References
+#  ANCHOR Module References
 
 from typing import List
 
 import os
-import sys # REQUIRED
+import sys
 import platform
 import datetime
 
@@ -11,7 +11,13 @@ import click
 import pcshell # REQUIRED
 import prompt_toolkit
 
-from ._settings import ToggleFlag, print_all_settings, SETTINGS, SHELL_FLAGS
+
+# Local Imports
+
+try:
+    from ._settings import ToggleFlag, print_all_settings, SETTINGS, SHELL_FLAGS
+except:
+    from _settings import ToggleFlag, print_all_settings, SETTINGS, SHELL_FLAGS
 
 
 
@@ -20,7 +26,6 @@ from ._settings import ToggleFlag, print_all_settings, SETTINGS, SHELL_FLAGS
 
 __version__ = '1.0.0.0'
 
-pcshell.globals.__IsShell__ = len(sys.argv) == 1 # REQUIRED
 pcshell.globals.HISTORY_FILENAME = '.testapp-history'
 
 pcshell.colors.COMPLETION_ROOT_COMMAND_DESCRIPTION = 'fg=\"#b30000\"'

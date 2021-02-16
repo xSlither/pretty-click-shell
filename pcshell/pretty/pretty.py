@@ -18,6 +18,7 @@ from colorama import Style
 
 from .. import globals as globs
 from .. import _colors as colors
+from .._utils import HasKey
 
 
 class PrettyHelper:
@@ -274,7 +275,6 @@ class PrettyHelper:
                         
                     return value
                 except Exception as e:
-                    print(e)
                     raise click.BadParameter('Invalid Python Literal Provided: %s' % str(value))
 
 
@@ -282,23 +282,35 @@ class PrettyHelper:
             with augment_usage_errors(ctx, param=self):
                 exists = self.consume_value(ctx, opts)
 
-                # ########################################
-                # TODO Add support for "multiple" option #
-                # ########################################
+                def remove_mapitem(dic: dict, key: str, i: int) -> None:
+                    dic[key].pop(i)
+                    dic['%s_count' % key] -= 1
 
-                if exists:
-                    i = 0
-                    for optval in opts:
-                        if opts[optval].startswith('['):
-                            if optval == self.name:
-                                break
-                            i += 1
+                def typed_tuple_map() -> dict:
+                    line = globs.__CURRENT_LINE__
+                    matches = re.findall(r"\s(--[\w]*)([\s]*\[)", line)
 
-                    i -= seq
+                    dic = dict()
+                    n = 0
+                    
+                    for match in matches:
+                        if HasKey(match[0], dic):
+                            dic[match[0]].append(n)
+                            dic['%s_count' % match[0]] += 1
+                        else: 
+                            dic[match[0]] = [n]
+                            dic['%s_count' % match[0]] = 1
+                        n += 1
+                    return dic
+
+                def split_args(dic: dict) -> List[str]:
+                    i = dic['--%s' % self.name][dic['--%s_count' % self.name] - 1]
+                    ii = 0
+
                     true_args = []
                     used_args = []
-                    ii = 0
-                    for arg in args:
+                    
+                    for arg in ctx.original_args:
                         if arg.endswith(']'): 
                             if not ii == i: true_args.append(arg)
                             else: used_args.append(arg)
@@ -310,43 +322,72 @@ class PrettyHelper:
                             continue
                         true_args.append(arg)
 
-                    value = (extract_tuple(opts[optval], used_args))
+                    return used_args
+
+
+                if exists:
+
+                    tuple_map = typed_tuple_map()
+
+                    if not isinstance(exists, list):
+                        # Single Option
+
+                        used_args = split_args(tuple_map)
+                        value = (extract_tuple(self.name, used_args))
+                        remove_mapitem(tuple_map, ('--%s' % self.name), (tuple_map['--%s_count' % self.name] - 1))
+
+                    else:
+                        # Multiple Options
+                        value = []
+
+                        for opt in reversed(exists):
+                            used_args = split_args(tuple_map)
+                            value.append((extract_tuple(opt, used_args)))
+                            remove_mapitem(tuple_map, '--%s' % self.name, tuple_map['--%s_count' % self.name] - 1)
+                        value.reverse()
 
                     seq += 1
-                    args = true_args
-                
-                    # print('--------------\n%s\n--------------\n' % args)
+                    args = None
             #----------------------------------------------------------------------------
 
 
         def check_tuple(value):
             valid = False
             if self.literal and self.literal_tuple_type:
-                if len(value) == len(self.literal_tuple_type):
-                    for i in range(0, len(value)):
-                        if not type(value[i]) == self.literal_tuple_type[i]:
-                            if str(self.literal_tuple_type[i]).startswith('Choice('): 
-                                if value[i] in self.literal_tuple_type[i].choices: continue
-                                raise click.BadArgumentUsage('"{}" is not a valid argument. Valid choices are: {}'.format(value[i], str(self.literal_tuple_type[i].choices)))
-                            
-                        else: 
-                            valid = True
-                            continue
+                def __check_tuple__(value):
+                    if len(value) == len(self.literal_tuple_type):
+                        for i in range(0, len(value)):
+                            if not type(value[i]) == self.literal_tuple_type[i]:
+                                if str(self.literal_tuple_type[i]).startswith('Choice('): 
+                                    if value[i] in self.literal_tuple_type[i].choices: continue
+                                    raise click.BadArgumentUsage('"{}" is not a valid argument. Valid choices are: {}'.format(value[i], str(self.literal_tuple_type[i].choices)))
+                                
+                            else: 
+                                valid = True
+                                continue
 
-                        valid = False
-                        break
-                else:
-                    if len(value) > len(self.literal_tuple_type):
-                        raise click.BadParameter('Too many arguments')
-                    raise click.BadParameter('Please check for incorrect tuple sizes & missing or invalid arguments')
+                            valid = False
+                            break
+                    else:
+                        if len(value) > len(self.literal_tuple_type):
+                            raise click.BadParameter('Too many arguments')
+                        raise click.BadParameter('Please check for incorrect tuple sizes & missing or invalid arguments')
 
-                if not valid: raise click.BadParameter('Tuple type does not match.\n\n\tProvided: {}\n\tExpected: {}'.format(value, self.literal_tuple_type))
+                    if not valid: raise click.BadParameter('Tuple type does not match.\n\n\tProvided: {}\n\tExpected: {}'.format(value, self.literal_tuple_type))
+
+                if len(value) and isinstance(value[0], list):
+                    # Multiple Option
+                    for v in value: __check_tuple__(v)
+                else: 
+                    # Single Option
+                    __check_tuple__(value)
 
 
-        # print(value)
+        #----------------------------------------------------------------------------
         if value: check_tuple(value)
 
         if self.expose_value:
             ctx.params[self.name] = value
 
         return value, args, seq
+        #----------------------------------------------------------------------------

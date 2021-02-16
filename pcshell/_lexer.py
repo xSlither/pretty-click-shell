@@ -282,7 +282,6 @@ class ShellLexer(RegexLexer):
             (r"--(?<=\s--)[a-zA-Z0-9]+(?=\s|$)", Name.Tag),
 
             # Commands, Groups, and Parameters
-            # (r"(?<=^)*(((?<=\s)|^)(:?[a-zA-Z0-9_\-][a-zA-Z0-9_\-]*)($|\s+))", command_lexer),
             (r"(?<=^)*(((?<=\s)|^)(?:\-\-|(\w*[a-zA-Z0-9_\-][a-zA-Z0-9_\-]*)($|\s+)))", command_lexer),
 
             # Strings

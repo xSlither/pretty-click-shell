@@ -1,7 +1,4 @@
 from typing import List
-
-import os
-import sys
 import re
 
 import click
@@ -96,6 +93,7 @@ class PrettyCommand(click.Command):
 
         parser = self.make_parser(ctx)
         opts, args, param_order = parser.parse_args(args=args)
+        ctx.original_args = args.copy()
 
         i = 0
         for param in iter_params_for_processing(param_order, self.get_params(ctx)):

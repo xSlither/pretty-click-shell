@@ -33,8 +33,13 @@ try:
 except: pass
 
 
+# ######################################
+globs.__IsShell__ = len(sys.argv) == 1 #
+# ######################################
+
+
 class ClickCmd(Cmd, object):
-    """A custom Cmd implemenation that delegates output / exceptions to click, handles user input, and maintains a history file"""
+    """A custom Cmd implemenation that delegates commands to click and handles prompt_toolkit/readline functions"""
 
     # Cmd string overrides
     identchars = Cmd.identchars + '-'
