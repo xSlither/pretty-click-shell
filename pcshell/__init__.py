@@ -30,6 +30,11 @@ from . import types
 from ._cmd_factories import ClickCmdShell
 from .shell import MultiCommandShell, Shell
 
+try:
+    from ._lexer import ShellLexer
+    from ._completion import ClickCompleter, StyledFuzzyCompleter
+except: pass
+
 # Decorator Exports
 
 from .decorators import (

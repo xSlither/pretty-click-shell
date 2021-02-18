@@ -570,12 +570,15 @@ class ClickCompleter(Completer):
                     # Recommend Options
 
                     if len(obj['_options']):
+                        current_option = get_option(true_option)
                         for opt in obj['_options']:
                             name = opt[0]
                             option: click.Option = opt[1]
 
                             if name == '--help' or name == '-h': continue
                             if option.hidden: continue
+                            if current_option and option.name == current_option.name:
+                                if (option.is_bool_flag or option.is_flag) and not option.multiple: continue
 
                             if (not original_words_prev.count('--%s' % option.name) > 0) or option.multiple:
                                 if name.startswith(word):
@@ -601,6 +604,7 @@ class ClickCompleter(Completer):
                                         ret += 2
                                         if HasKey('nargs', option) and option.nargs > 1:
                                             ret += (option.nargs - 1)
+                                    else: ret += 1
                             return ret
 
                         def AnalyzeArgs():
@@ -614,10 +618,12 @@ class ClickCompleter(Completer):
                         def check_literal():
                             def check_tuple(i: int) -> int:
                                 n = 0
-                                if original_words[i].startswith('['):
-                                    for item in original_words[i:]:
-                                        n += 1
-                                        if item.endswith(']'): break
+                                try:
+                                    if original_words[i].startswith('['):
+                                        for item in original_words[i:]:
+                                            n += 1
+                                            if item.endswith(']'): break
+                                except IndexError: return 0
                                 return n
 
                             ret = 0
@@ -681,7 +687,7 @@ class ClickCompleter(Completer):
                                     display_meta=HTML("<style %s><i>%s</i></style>" % (colors.COMPLETION_ARGUMENT_DESCRIPTION, h))
                                 )
 
-        except Exception: return
+        except Exception as e: return
 
 
 class StyledFuzzyCompleter(FuzzyCompleter):

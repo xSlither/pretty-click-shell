@@ -133,7 +133,7 @@ def api():
 
 @testapp.group(cls=pcshell.MultiCommandShell, context_settings=CONTEXT_SETTINGS)
 def multi():
-    """Some Test commands w/ Aliases"""
+    """Some Test commands w/ Aliases & multiples"""
 
 
 # Sub Shell - SomeShell
@@ -172,7 +172,7 @@ def test(arg1, opt1, opt2):
     return { 'someProp': arg1, 'someProp2': opt1, 'someProp3': opt2 }
 
 @api.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=False)
-@pcshell.option('--date', type=str, callback=VerifyDate, prompt='Effective Date', help="Some argument for this command")
+@pcshell.option('--date', type=str, callback=VerifyDate, prompt='Effective Date', help="A MM/DD/YY Date Parameter")
 @pcshell.add_options(option_useDevRegion)
 @pcshell.repeatable
 def test2(date, dev):
@@ -195,8 +195,9 @@ tuple_test_choice = pcshell.types.Choice(['choice1', 'choice2'], display_tags=['
 @pcshell.argument('test', type=str, help='A string argument')
 @pcshell.argument('test2', type=int, help='An int argument')
 @pcshell.argument('test3', type=float, help='A float argument')
+@pcshell.add_options(option_useDevRegion)
 @pcshell.repeatable
-def test_tuple(t, test, test2, test3, c):
+def test_tuple(t, test, test2, test3, c, dev):
     """Test Literal Tuple Completion"""
     if IsShell:
         if t:
@@ -208,10 +209,11 @@ def test_tuple(t, test, test2, test3, c):
         click.echo('\n\tArgument 1: %s' % test)
         click.echo('\tArgument 2: %s' % test2)
         click.echo('\tArgument 3: %s' % test3)
+        if dev: click.echo('\n\tDEV MODE = TRUE')
     return t
 
 @multi.command(['click_tuple', 'clicktup'], context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
-@pcshell.option('--t', default=(None, None), type=(str, tuple_test_choice), help='A click tuple type option')
+@pcshell.option('--t', default=(None, None), type=(str, tuple_test_choice), help='A click tuple type option', multiple=True)
 @pcshell.argument('test', type=int, help='An integer argument')
 @pcshell.repeatable
 def test_click_tuple(test, t):

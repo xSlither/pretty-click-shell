@@ -1,6 +1,7 @@
 import click
 
 from .pretty import PrettyHelper
+from .prettyoption import PrettyOption
 
 
 class PrettyGroup(click.Group):
@@ -31,6 +32,10 @@ class PrettyGroup(click.Group):
     def format_epilog(self, ctx, formatter):
         """Additional formatting after all of the help text is written"""
         PrettyHelper.format_epilog(self, ctx, formatter)
+
+
+    def resolve_command(self, ctx, args):
+        return PrettyHelper.resolve_command(self, ctx, args)
 
 
     def add_command(self, cmd, name=None):
@@ -78,3 +83,20 @@ class PrettyGroup(click.Group):
 
     def main(self, args=None, prog_name=None, complete_var=None, standalone_mode=True, **extra):
         return PrettyHelper.main(self, args=args, prog_name=prog_name, complete_var=complete_var, standalone_mode=standalone_mode, **extra)
+
+
+    def parse_args(self, ctx, args):
+        if not args and self.no_args_is_help and not ctx.resilient_parsing:
+            click.echo(ctx.get_help(), color=ctx.color)
+            ctx.exit()
+
+        args = PrettyHelper.parse_line(args)
+
+        rest = click.Command.parse_args(self, ctx, args)
+        if self.chain:
+            ctx.protected_args = rest
+            ctx.args = []
+        elif rest:
+            ctx.protected_args, ctx.args = rest[:1], rest[1:]
+
+        return ctx.args

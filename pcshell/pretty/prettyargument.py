@@ -2,7 +2,7 @@ from typing import List
 
 import click
 
-from .pretty import PrettyHelper
+# from .pretty import PrettyHelper
 
 
 class PrettyArgument(click.Argument):

@@ -296,7 +296,7 @@ class BaseShellCommands:
             os.system('python "%s"' % sys.argv[0].replace('\\', '/'))
 
             # Exits the current shell once it's child has closed
-            shell.shell._pipe_input.send_text('exit' + '\r')
+            shell.shell._pipe_input.send_text('exit\r')
             globs.__IS_REPEAT__ = True
             if shell.shell.readline:
                 globs.__PREV_STDIN__ = sys.stdin

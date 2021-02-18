@@ -3,6 +3,8 @@ import inspect
 import os
 import sys
 
+import re
+
 try: 
     import readline
 except: pass
@@ -247,6 +249,20 @@ class ClickCmd(Cmd, object):
                         # If stream source is from the 'repeat' command, display the "visible" repeated command
                         click.echo(globs.__LAST_COMMAND_VISIBLE__)
 
+                    def fixTupleSpacing(val):
+                        if '[' in val or ']' in val:
+                            val = re.sub(r"(\[[\s])", '[', val)
+                            val = re.sub(r"([\s]\])", ']', val)
+                            val = re.sub(r"(\[,)", ']', val)
+                            val = re.sub(r"(,\])", ']', val)
+                        if ',' in val:
+                            val = re.sub(r"(\",\")", "\", \"", val)
+                            val = re.sub(r"([,]{1,999}.(?<=,))", ',', val)
+                        return val
+
+                    line = fixTupleSpacing(line)
+                    globs.__CURRENT_LINE__ = line
+
                     try:
                         line = self.precmd(line)
                         stop = self.onecmd(line)
@@ -263,7 +279,8 @@ class ClickCmd(Cmd, object):
                             globs.__IS_REPEAT__ = False
                             globs.__IS_REPEAT_EOF__ = True
                             if (not self.readline) and self._pipe_input:
-                                self._pipe_input.send_text(globs.__LAST_COMMAND__ + '\r')
+                                if globs.__LAST_COMMAND__:
+                                    self._pipe_input.send_text(globs.__LAST_COMMAND__ + '\r')
                                 
                         elif self._pipe_input and globs.__IS_REPEAT_EOF__:
                             globs.__IS_REPEAT_EOF__ = False

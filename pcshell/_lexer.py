@@ -72,6 +72,7 @@ def command_lexer(lexer, match):
 
 
     def get_parameter_token():
+
         def get_option(name: str):
             if len(obj['_options']):
                 try: return [x for x in obj['_options'] if x[0] == name][0][1]
@@ -81,60 +82,6 @@ def command_lexer(lexer, match):
         def get_option_names():
             expression = r'(?<=--)([a-zA-Z0-9]*)(?=\s)'
             return re.findall(expression, line)    
-
-        if len(obj['_options']):
-            true_option_name = ClickCompleter.get_true_option_from_line(parsed_line)
-            option = get_option(true_option_name) if true_option_name else None
-            if option:
-                if (not (option.is_bool_flag or option.is_flag)) and not option.literal_tuple_type:
-                    values = []
-                    isChoice = False
-                    isBool = False
-
-                    if not '.Tuple object' in str(option.type):
-                        # Standard Option Parameter
-                        if option.type.name == 'choice': 
-                            values = [c for c in option.type.choices if c]
-                            isChoice = True
-                        elif option.choices and ('Choice' in str(type(option.choices))): 
-                            values = [c for c in option.choices.choices if c]
-                            isChoice = True
-                        elif option.type.name == 'boolean': 
-                            isBool = True
-                            values = ['true', 'false']
-                    else:
-                        # Click Tuple Type
-                        def get_option_args():
-                            ret = []
-                            for arg in reversed(parsed_line.rstrip().split(' ')):
-                                if arg == true_option_name: break
-                                ret.append(arg)
-                            return ret
-
-                        option_args = get_option_args()
-                        if len(option_args) > option.nargs: return Name.InvalidCommand
-
-                        type_obj = option.type.types[len(option_args) - 1]
-
-                        if type_obj:
-                            type_name = type_obj.name
-                            if type_name == 'choice':
-                                values = [c for c in type_obj.choices if c]
-                                isChoice = True
-                            elif type_name == 'boolean':
-                                isBool = True
-                                values = ['true', 'false']
-                        else: return Name.InvalidCommand
-
-
-                    # Verified Option Parameter
-                    if isChoice and word in values: return Name.Attribute
-                    elif isChoice: return Name.InvalidCommand
-
-                    elif isBool and word in values: return Keyword
-                    elif isBool: return Name.InvalidCommand
-
-                    else: return Text
 
 
         def AnalyzeOptions():
@@ -153,6 +100,7 @@ def command_lexer(lexer, match):
             ret = 0
             if len(obj['_arguments']):
                 for arg in obj['_arguments']:
+
                     if HasKey('nargs', arg) and arg.nargs > 1:
                         ret += (arg.nargs - 1)
             return ret
@@ -182,12 +130,77 @@ def command_lexer(lexer, match):
                 ii += 1
             return ret
 
+
         words_len = len(words) - len(current_key)
         words_len -= check_literal()
 
         nargs = words_len
-        nargs = nargs - AnalyzeOptions()
+        nargs -= AnalyzeOptions()
         # nargs -= AnalyzeArgs()
+
+
+        if len(obj['_options']):
+            true_option_name = ClickCompleter.get_true_option_from_line(parsed_line)
+            option = get_option(true_option_name) if true_option_name else None
+            if option:
+                if (not (option.is_bool_flag or option.is_flag)) and not option.literal_tuple_type:
+                    values = []
+                    isChoice = False
+                    isBool = False
+
+                    validArg = False
+
+                    if not '.Tuple object' in str(option.type):
+                        # Standard Option Parameter
+                        if option.type.name == 'choice': 
+                            values = [c for c in option.type.choices if c]
+                            isChoice = True
+                        elif option.choices and ('Choice' in str(type(option.choices))): 
+                            values = [c for c in option.choices.choices if c]
+                            isChoice = True
+                        elif option.type.name == 'boolean': 
+                            isBool = True
+                            values = ['true', 'false']
+                    else:
+                        # Click Tuple Type
+
+                        def get_option_args():
+                            ret = []
+                            for arg in reversed(parsed_line.rstrip().split(' ')):
+                                if arg == true_option_name: break
+                                ret.append(arg)
+                            return ret
+
+                        option_args = get_option_args()
+                        if len(option_args) > option.nargs: 
+                            if len(obj['_arguments']) and (nargs - 1 < len(obj['_arguments'])): validArg = True
+                            if not validArg: return Name.InvalidCommand
+
+                        if not validArg:
+                            type_obj = option.type.types[len(option_args) - 1]
+
+                            if type_obj:
+                                type_name = type_obj.name
+                                if type_name == 'choice':
+                                    values = [c for c in type_obj.choices if c]
+                                    isChoice = True
+                                elif type_name == 'boolean':
+                                    isBool = True
+                                    values = ['true', 'false']
+                            else:
+                                return Name.InvalidCommand
+
+
+                    # Verified Option Parameter
+                    if not validArg:
+                        if isChoice and word in values: return Name.Attribute
+                        elif isChoice: return Name.InvalidCommand
+
+                        elif isBool and word in values: return Keyword
+                        elif isBool: return Name.InvalidCommand
+
+                        else: return Text
+
 
         if len(obj['_arguments']):
             if nargs - 1 < len(obj['_arguments']):

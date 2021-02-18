@@ -18,6 +18,9 @@ SHELL_COMMAND_ALIAS_REPEAT = ['repeat']
 
 
 # ----------------------------------------------------
+SHOW_STACKTRACE = True
+
+
 __IsShell__ = None
 
 __LAST_COMMAND__ = None
