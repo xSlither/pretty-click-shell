@@ -406,6 +406,7 @@ class PrettyHelper:
 
         def check_tuple(value):
             if self.literal and self.literal_tuple_type:
+
                 def __check_tuple__(value):
                     valid = False
 
@@ -422,26 +423,33 @@ class PrettyHelper:
 
                             valid = False
                             break
-                    # else:
-                        # if len(value) > len(self.literal_tuple_type):
-                            # raise click.BadParameter('Tuple type does not match.\n\n\tProvided: {}\n\tExpected: {}'.format(value, self.literal_tuple_type))
-                        # raise click.BadParameter('Please check for missing or invalid arguments')
 
                     if not valid: raise click.BadParameter('Tuple type does not match.\n\n\tProvided: {}\n\tExpected: {}'.format(value, self.literal_tuple_type))
 
 
                 nargs = 0
-                for p in ctx.original_params:
-                    if p.startswith('--'): break
-                    nargs += 1
-
                 cmd_nargs = 0
                 cmd: Command = ctx.command
+                
+                def get_option(name: str) -> click.Option:
+                    for p in cmd.params: 
+                        if isinstance(p, click.Option) and p.name == name: return p
+                    return None
+
+                for p in ctx.original_params:
+                    if p.startswith('--'): 
+                        option = get_option(p[2:])
+                        if option and not (option.is_bool_flag or option.is_flag):
+                            break
+                        else: continue
+                    nargs += 1
+
                 for a in cmd.params:
                     if isinstance(a, click.Argument):
                         if a.required:
                             cmd_nargs += 1
                             if HasKey('nargs', a): cmd_nargs += a.nargs - 1
+
 
                 if nargs < cmd_nargs:
                     raise click.ClickException(

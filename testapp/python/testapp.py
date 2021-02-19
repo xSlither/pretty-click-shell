@@ -224,6 +224,19 @@ def test_click_tuple(test, t):
         click.echo('\n\tProvided Argument: %s' % test)
     return t
 
+@multi.command(['tuple_args', 'tuparg'], context_settings=CONTEXT_SETTINGS, no_args_is_help=False)
+@pcshell.option('--t', default=[], literal_tuple_type=[bool, bool], help='A typed tuple option')
+@pcshell.argument('test', type=(tuple_test_choice, bool), help='A click tuple type argument')
+@pcshell.argument('test2', type=float, help='A float argument')
+def test_arg_tuples(test, test2, t):
+    """Test Tuple Argument Completion"""
+    if IsShell:
+        click.echo('\n\tProvided Tuple: %s' % str(t))
+        click.echo('\tTuple Type is: %s' % type(t))
+        click.echo('\n\tProvided Argument1: %s' % str(test))
+        click.echo('\tProvided Argument2: %s' % str(test2))
+    return test
+
 
 #--------------------------------------------
 
