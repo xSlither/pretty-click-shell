@@ -1,9 +1,11 @@
-import os
-import sys
+from typing import List
+import re
 
 import click
+from click.core import iter_params_for_processing, make_str
 
 from .pretty import PrettyHelper
+from .prettyoption import PrettyOption
 
 
 class PrettyCommand(click.Command):
@@ -35,3 +37,11 @@ class PrettyCommand(click.Command):
 
     def main(self, args=None, prog_name=None, complete_var=None, standalone_mode=True, **extra):
         return PrettyHelper.main(self, args=args, prog_name=prog_name, complete_var=complete_var, standalone_mode=standalone_mode, **extra)
+
+
+    @staticmethod
+    def supportsLiterals(param: click.Parameter):
+        return isinstance(param, PrettyOption)
+
+    def parse_args(self, ctx, args):
+        return PrettyHelper.parse_args(self, ctx, args, PrettyCommand.supportsLiterals)

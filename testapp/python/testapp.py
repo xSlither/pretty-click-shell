@@ -1,7 +1,9 @@
-#  ANCHOR References
+#  ANCHOR Module References
+
+from typing import List
 
 import os
-import sys # REQUIRED
+import sys
 import platform
 import datetime
 
@@ -9,7 +11,13 @@ import click
 import pcshell # REQUIRED
 import prompt_toolkit
 
-from ._settings import ToggleFlag, print_all_settings, SETTINGS, SHELL_FLAGS
+
+# Local Imports
+
+try:
+    from ._settings import ToggleFlag, print_all_settings, SETTINGS, SHELL_FLAGS
+except:
+    from _settings import ToggleFlag, print_all_settings, SETTINGS, SHELL_FLAGS
 
 
 
@@ -18,10 +26,11 @@ from ._settings import ToggleFlag, print_all_settings, SETTINGS, SHELL_FLAGS
 
 __version__ = '1.0.0.0'
 
-pcshell.globals.__IsShell__ = len(sys.argv) == 1 # REQUIRED
 pcshell.globals.HISTORY_FILENAME = '.testapp-history'
 
 pcshell.colors.COMPLETION_ROOT_COMMAND_DESCRIPTION = 'fg=\"#b30000\"'
+
+IsShell = pcshell.globals.__IsShell__
 #==============================================================================
 
 
@@ -51,7 +60,7 @@ def ShellStart():
 
 
 #---------------------------------------------------------------------------------------------
-@pcshell.shell(prompt = 'testapp > ', intro = pcshell.chars.CLEAR_CONSOLE + __SHELL_INTRO__, 
+@pcshell.shell(prompt = 'testapp', intro = pcshell.chars.CLEAR_CONSOLE + __SHELL_INTRO__, 
 before_start=ShellStart, context_settings = CONTEXT_SETTINGS)
 def testapp():
     """The Test Shell Application"""
@@ -122,6 +131,12 @@ def __disable__(singleflag, flag):
 def api():
     """Commands for invoking various API endpoints"""
 
+@testapp.group(cls=pcshell.MultiCommandShell, context_settings=CONTEXT_SETTINGS)
+def multi():
+    """Some Test commands w/ Aliases & multiples"""
+
+
+# Sub Shell - SomeShell
 
 __someshell_version__ = '1.0.0.5'
 
@@ -130,7 +145,7 @@ def print_someshell_version(ctx: click.Context, param, value):
     click.echo(__someshell_version__)
     ctx.exit()
 
-@testapp.new_shell(prompt = 'someshell > ', intro=pcshell.chars.IGNORE_LINE,
+@testapp.new_shell(prompt = 'someshell', intro=pcshell.chars.IGNORE_LINE,
 before_start=None, context_settings=CONTEXT_SETTINGS,
 hist_file=os.path.join(os.path.expanduser('~'), '.testapp-someshell-history'))
 @pcshell.option('--version', is_flag=True, callback=print_someshell_version, expose_value=False, is_eager=True, hidden=True)
@@ -148,20 +163,81 @@ def someshell():
 
 @api.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
 @pcshell.argument('arg1', type=str, help="Some argument for this command")
-@pcshell.option('--opt1', type=pcshell.types.Choice(['blue', 'red'], display_tags=['ansiblue', 'ansired']), help="Some option for this command")
+@pcshell.option('--opt1', type=pcshell.types.Choice(['blue', 'red'], display_tags=['ansiblue', 'style fg="#dc322f"']), help="Some option for this command")
 @pcshell.option('--opt2', type=bool, help="Some option for this command")
+@pcshell.repeatable
 def test(arg1, opt1, opt2):
     """Some API Command"""
-    click.echo('Argument was "{}". "{}" was selected, with additional flag = "{}"'.format(arg1, opt1, opt2))
-    pass
+    if IsShell: click.echo('Argument was "{}". "{}" was selected, with additional flag = "{}"'.format(arg1, opt1, opt2))
+    return { 'someProp': arg1, 'someProp2': opt1, 'someProp3': opt2 }
 
 @api.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=False)
-@pcshell.option('--date', type=str, callback=VerifyDate, prompt='Effective Date', help="Some argument for this command")
+@pcshell.option('--date', type=str, callback=VerifyDate, prompt='Effective Date', help="A MM/DD/YY Date Parameter")
 @pcshell.add_options(option_useDevRegion)
+@pcshell.repeatable
 def test2(date, dev):
     """Some Other API Command"""
-    click.echo('Effective Date was "{}", and DEV Mode = "{}"'.format(date, dev))
-    pass
+    if IsShell: click.echo('Effective Date was "{}", and DEV Mode = "{}"'.format(date, dev))
+    return { 'date': date, 'devMode': dev }
+
+#--------------------------------------------
+
+
+#--------------------------------------------
+#  ANCHOR Command Tree | multi -> x
+#--------------------------------------------
+
+tuple_test_choice = pcshell.types.Choice(['choice1', 'choice2'], display_tags=['style fg=#d7ff00'])
+
+@multi.command(['tup', 'tuple'], context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
+@pcshell.option('--t', default=[], literal_tuple_type=[str, float, bool, tuple_test_choice], help='A typed tuple literal option')
+@pcshell.option('--c', default=[], literal_tuple_type=[bool, bool], help='A second typed tuple literal option', multiple=True)
+@pcshell.argument('test', type=str, help='A string argument')
+@pcshell.argument('test2', type=int, help='An int argument')
+@pcshell.argument('test3', type=float, help='A float argument')
+@pcshell.add_options(option_useDevRegion)
+@pcshell.repeatable
+def test_tuple(t, test, test2, test3, c, dev):
+    """Test Literal Tuple Completion"""
+    if IsShell:
+        if t:
+            click.echo('\n\tProvided Optional Tuple 1: %s' % str(t))
+            click.echo('\tOptional Tuple Type is: %s' % type(t))
+        if c:
+            click.echo('\n\tProvided Optional Tuple 2: %s' % str(c))
+            click.echo('\tOptional Tuple Type is: %s' % type(c))
+        click.echo('\n\tArgument 1: %s' % test)
+        click.echo('\tArgument 2: %s' % test2)
+        click.echo('\tArgument 3: %s' % test3)
+        if dev: click.echo('\n\tDEV MODE = TRUE')
+    return t
+
+@multi.command(['click_tuple', 'clicktup'], context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
+@pcshell.option('--t', default=(None, None), type=(str, tuple_test_choice), help='A click tuple type option', multiple=True)
+@pcshell.argument('test', type=int, help='An integer argument')
+@pcshell.repeatable
+def test_click_tuple(test, t):
+    """Test Click Tuple Completion"""
+    if IsShell:
+        click.echo('\n\tProvided Tuple: %s' % str(t))
+        click.echo('\tTuple Type is: %s' % type(t))
+        click.echo('\n\tProvided Argument: %s' % test)
+    return t
+
+@multi.command(['tuple_args', 'tuparg'], context_settings=CONTEXT_SETTINGS, no_args_is_help=False)
+@pcshell.option('--t', default=[], literal_tuple_type=[bool, bool], help='A typed tuple option')
+@pcshell.argument('test', type=(tuple_test_choice, bool), help='A click tuple type argument')
+@pcshell.argument('test2', type=float, help='A float argument')
+@pcshell.repeatable
+def test_arg_tuples(test, test2, t):
+    """Test Tuple Argument Completion"""
+    if IsShell:
+        click.echo('\n\tProvided Tuple: %s' % str(t))
+        click.echo('\tTuple Type is: %s' % type(t))
+        click.echo('\n\tProvided Argument1: %s' % str(test))
+        click.echo('\tProvided Argument2: %s' % str(test2))
+    return test
+
 
 #--------------------------------------------
 
@@ -172,28 +248,45 @@ def test2(date, dev):
 
 def some_callback(ctx: click.Context, param, value):
     if not value or ctx.resilient_parsing: return False
-    click.echo('[Option 2 Callback] (Is Eager)')
+    if IsShell: click.echo('[Option 2 Callback] (Is Eager)')
     return value
 
 def some_other_callback(ctx: click.Context, param, value):
     if not value or ctx.resilient_parsing: return False
-    click.echo('[Option 1 Callback]')
+    if IsShell: click.echo('[Option 1 Callback]')
     return value
 
 @someshell.command(context_settings=CONTEXT_SETTINGS)
 @pcshell.option('--opt1', is_flag=True, callback=some_other_callback, help='Some Flag')
 @pcshell.option('--opt2', is_flag=True, is_eager=True, hidden=True, callback=some_callback, help='This help text should never be displayed')
+@pcshell.repeatable
 def test(opt1, opt2):
     """Some Sub-Shell Command"""
-    click.echo('Option 1 is: %s' % opt1)
-    click.echo('Option 2 is: %s' % opt2)
-    pass
+    if IsShell:
+        click.echo('Option 1 is: %s' % opt1)
+        click.echo('Option 2 is: %s' % opt2)
+    return { 'opt1': opt1, 'opt2': opt2 }
+
+
+@someshell.group(context_settings=CONTEXT_SETTINGS)
+def group():
+    """A Command Group in the Sub-Shell"""
+
+
+@group.command(context_settings=CONTEXT_SETTINGS)
+@pcshell.argument('choice', type=pcshell.types.Choice(['blue', 'red'], display_tags=['ansiblue', 'ansired']))
+@pcshell.repeatable
+def cmd(choice):
+    """Some Sub-Command of the Sub-Shell"""
+    if IsShell: click.echo('Argument was: "%s"' % choice)
+    return 'Some return string that includes "%s"' % choice
 
 #--------------------------------------------
 
 
 # !SECTION
 #//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 
 # ANCHOR Main Routine

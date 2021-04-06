@@ -3,6 +3,8 @@ import inspect
 import os
 import sys
 
+import re
+
 try: 
     import readline
 except: pass
@@ -10,6 +12,10 @@ except: pass
 try:
     from prompt_toolkit.history import FileHistory
     from prompt_toolkit.shortcuts import PromptSession
+    
+    from prompt_toolkit.lexers import PygmentsLexer
+
+    from prompt_toolkit.input.defaults import create_pipe_input
 except: pass
 
 from cmd import Cmd
@@ -22,24 +28,37 @@ from colorama import Style
 from . import globals as globs
 from . import _colors as colors
 from . import utils
-from .chars import IGNORE_LINE
+from .chars import IGNORE_LINE, PROMPT_SYMBOL
 
 try:
     from ._completion import get_completer, BuildCompletionTree
 except: pass
 
 
+# ######################################
+globs.__IsShell__ = len(sys.argv) == 1 #
+# ######################################
+
+
 class ClickCmd(Cmd, object):
-    """A custom Cmd implemenation that delegates output / exceptions to click, handles user input, and maintains a history file"""
+    """A custom Cmd implemenation that delegates commands to click and handles prompt_toolkit/readline functions"""
 
     # Cmd string overrides
     identchars = Cmd.identchars + '-'
     nohelp = "No help on %s"
     nocommand = "\n\t{}Command not found: {}%s{}".format(colors.COMMAND_NOT_FOUND_TEXT_STYLE, colors.COMMAND_NOT_FOUND_TEXT_FORE, Style.RESET_ALL)
 
-    def __init__(self, ctx: click.Context =None, 
-    on_finished=None, hist_file=None, before_start=None, readline=None, 
-    complete_while_typing=True, fuzzy_completion=True, mouse_support=True, *args, **kwargs):
+    def __init__(self, 
+        ctx: click.Context =None, 
+        on_finished=None, 
+        hist_file=None, 
+        before_start=None, 
+        readline=None, 
+        complete_while_typing=True, 
+        fuzzy_completion=True, 
+        mouse_support=True,
+        lexer=True,
+    *args, **kwargs):
         self._stdout = kwargs.get('stdout')
         super(ClickCmd, self).__init__(*args, **kwargs)
 
@@ -52,6 +71,8 @@ class ClickCmd(Cmd, object):
         self.complete_while_typing = complete_while_typing
         self.fuzzy_completion = fuzzy_completion
         self.mouse_support = mouse_support
+        self.lexer = lexer
+        self._pipe_input = create_pipe_input() if not self.readline else None
 
         # A callback function that will be excuted before loading up the shell. 
         # By default this changes the color to 0a on a Windows machine
@@ -142,14 +163,43 @@ class ClickCmd(Cmd, object):
                     BuildCompletionTree(self.ctx)
 
                 # Initialize Prompter
+                try:
+                    from ._lexer import ShellLexer
+                except: pass
+                from prompt_toolkit.output.color_depth import ColorDepth
+
+                message = [
+                    ('class:name', self.get_prompt()),
+                    ('class:prompt', PROMPT_SYMBOL),
+                ]
+
                 self.prompter = PromptSession(
-                    self.get_prompt(),
+                    message,
+
+                    style=colors.prompt_style,
+                    color_depth=ColorDepth.TRUE_COLOR,
+
                     history=self.history,
                     enable_history_search=not self.complete_while_typing,
                     mouse_support=self.mouse_support,
                     completer=get_completer(self.fuzzy_completion),
                     complete_in_thread=self.complete_while_typing,
                     complete_while_typing=self.complete_while_typing,
+                    lexer=PygmentsLexer(ShellLexer) if self.lexer else None
+                )
+
+                self.piped_prompter = PromptSession(
+                    message,
+
+                    style=colors.prompt_style,
+                    color_depth=ColorDepth.TRUE_COLOR,
+
+                    input=self._pipe_input,
+                    key_bindings=None,
+
+                    is_password=True,
+
+                    lexer=PygmentsLexer(ShellLexer) if self.lexer else None
                 )
 
             # Start Shell Application Loop
@@ -159,9 +209,13 @@ class ClickCmd(Cmd, object):
                 else:
                     try:
                         if self.readline:
-                            line = get_input(self.get_prompt())
+                            line = get_input(self.get_prompt() + PROMPT_SYMBOL)
                         else:
-                            line = self.prompter.prompt()
+                            if not globs.__IS_REPEAT_EOF__:
+                                line = self.prompter.prompt()
+                            elif self._pipe_input:
+                                line = self.piped_prompter.prompt()
+
                     except EOFError:
                         if not globs.__IS_REPEAT_EOF__:
                             # Exits the Shell Application when stdin stream ends
@@ -170,7 +224,7 @@ class ClickCmd(Cmd, object):
                         else:
                             # Swap STDIN from Programmatic Input back to User Input
                             globs.__IS_REPEAT_EOF__ = False
-                            sys.stdin = globs.__PREV_STDIN__
+                            if self.readline: sys.stdin = globs.__PREV_STDIN__
                             # Prevent empty lines from being created from null input
                             print('\n' + IGNORE_LINE)
                             continue
@@ -195,6 +249,20 @@ class ClickCmd(Cmd, object):
                         # If stream source is from the 'repeat' command, display the "visible" repeated command
                         click.echo(globs.__LAST_COMMAND_VISIBLE__)
 
+                    def fixTupleSpacing(val):
+                        if '[' in val or ']' in val:
+                            val = re.sub(r"(\[[\s])", '[', val)
+                            val = re.sub(r"([\s]\])", ']', val)
+                            val = re.sub(r"(\[,)", ']', val)
+                            val = re.sub(r"(,\])", ']', val)
+                        if ',' in val:
+                            val = re.sub(r"(\",\")", "\", \"", val)
+                            val = re.sub(r"([,]{1,999}.(?<=,))", ',', val)
+                        return val
+
+                    line = fixTupleSpacing(line)
+                    globs.__CURRENT_LINE__ = line
+
                     try:
                         line = self.precmd(line)
                         stop = self.onecmd(line)
@@ -210,6 +278,12 @@ class ClickCmd(Cmd, object):
                         if line[0:6] != 'repeat' and globs.__IS_REPEAT__: 
                             globs.__IS_REPEAT__ = False
                             globs.__IS_REPEAT_EOF__ = True
+                            if (not self.readline) and self._pipe_input:
+                                if globs.__LAST_COMMAND__:
+                                    self._pipe_input.send_text(globs.__LAST_COMMAND__ + '\r')
+                                
+                        elif self._pipe_input and globs.__IS_REPEAT_EOF__:
+                            globs.__IS_REPEAT_EOF__ = False
                 else:
                     # Prevent empty lines from being created from null input
                     if not self.readline: click.echo(IGNORE_LINE)

@@ -2,6 +2,7 @@ import types
 import logging
 import shlex
 import traceback
+import sys
 
 from functools import update_wrapper
 from logging import NullHandler
@@ -16,6 +17,7 @@ from ._cmd import ClickCmd
 from ._utils import HasKey
 
 from . import _colors as colors
+from . import globals as globs
 
 
 logger = logging.getLogger(__name__)
@@ -77,9 +79,10 @@ def get_invoke(cmd: click.Command):
             formatter.write_text('{}An unexpected error has occurred{}'.format(colors.UNEXPECTED_ERROR_TEXT_STYLE, Style.RESET_ALL))
             formatter.write_paragraph()
 
-            with formatter.section('{fore}{back}{style}Python Stack Trace{reset}'.format(fore=colors.PYTHON_ERROR_HEADER_FORE, back=colors.PYTHON_ERROR_HEADER_BACK, style=colors.PYTHON_ERROR_HEADER_STYLE, reset=Style.RESET_ALL)):
+            with formatter.section('{fore}{back}{style}Python Trace{reset}'.format(fore=colors.PYTHON_ERROR_HEADER_FORE, back=colors.PYTHON_ERROR_HEADER_BACK, style=colors.PYTHON_ERROR_HEADER_STYLE, reset=Style.RESET_ALL)):
                 formatter.write(colors.PYTHON_STACKTRACE_STYLE)
                 formatter.write_text(''.join(traceback.format_exception(type(e), e, None)))
+                if globs.SHOW_STACKTRACE: formatter.write_text('\n'.join(traceback.format_exception(*sys.exc_info())[:-1]))
                 formatter.write(Style.RESET_ALL)
 
             click.echo(formatter.getvalue())

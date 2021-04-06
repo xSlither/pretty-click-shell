@@ -4,7 +4,7 @@ import click
 class Choice(click.Choice):
     def __init__(self, choices, display_tags=None, case_sensitive=True):
         self.display_tags = display_tags
-        if self.display_tags and (not len(choices) == len(display_tags)): raise Exception('list "choices" does not match length of list "display_tags"')
+        # if self.display_tags and (not len(choices) == len(display_tags)): raise Exception('list "choices" does not match length of list "display_tags"')
         super(Choice, self).__init__(choices, case_sensitive=case_sensitive)
 
 
