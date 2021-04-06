@@ -85,10 +85,11 @@ def BuildCommandString(ctx: click.Context) -> None:
 
                 # Click Tuple Parameter
                 elif isinstance(ctx.params[key], tuple):
-                    isArg = not key in args
+                    isArg = key in args
 
                     def add_click_tuple_param(lst=ctx.params[key]):
-                        ret = ' --{key}'.format(key=key)
+                        ret = ' --{key}'.format(key=key) if not isArg else ''
+
                         for val in lst:
                             if not isArg:
                                 if val:

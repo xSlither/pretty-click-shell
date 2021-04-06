@@ -611,8 +611,9 @@ class ClickCompleter(Completer):
                             ret = 0
                             if len(obj['_arguments']):
                                 for arg in obj['_arguments']:
-                                    if HasKey('nargs', arg) and arg.nargs > 1:
-                                        ret += (arg.nargs - 1)
+                                    _arg: PrettyArgument = arg[1]
+                                    if _arg and HasKey('nargs', _arg) and _arg.nargs > 1:
+                                        ret += (_arg.nargs - 1)
                             return ret
 
                         def check_literal():
@@ -640,16 +641,69 @@ class ClickCompleter(Completer):
                                 ii += 1
                             return ret
 
+                        def getNargMap():
+                            i = 0
+                            ret = []
+                            if len(obj['_arguments']):
+                                for arg in obj['_arguments']:
+                                    _arg: PrettyArgument = arg[1]
+                                    if _arg and HasKey('nargs', _arg):
+                                        for n in range(0, _arg.nargs):
+                                            ret.append(i)
+                                    else: ret.append(i)
+                                    i += 1
+                            return ret
+
+                        def getNargCountMap():
+                            ret = []
+                            if len(obj['_arguments']):
+                                for arg in obj['_arguments']:
+                                    _arg: PrettyArgument = arg[1]
+                                    if _arg and HasKey('nargs', _arg):
+                                        i = 0
+                                        for n in range(0, _arg.nargs):
+                                            ret.append(i)
+                                            i += 1
+                                    else: ret.append(0)
+                            return ret
+
+                        def get_argument_display_tag(arg: PrettyArgument, value, isChoice=False, isBool=False) -> List[str]:
+                            tag = colors.COMPLETION_CHOICE_DEFAULT
+
+                            if isChoice:
+                                try:
+                                    if len(arg.choices.display_tags):
+                                        try:
+                                            tag = arg.choices.display_tags[values.index(value)]
+                                        except: tag = arg.choices.display_tags[values.pop()]
+                                except: pass
+
+                                try:
+                                    if len(arg.type.display_tags):
+                                        try:
+                                            tag = arg.type.display_tags[values.index(value)]
+                                        except: tag = arg.type.display_tags[values.pop()]
+                                except: pass
+
+                            if isBool:
+                                tag = colors.COMPLETION_CHOICE_BOOLEAN_TRUE if value == 'true' else colors.COMPLETION_CHOICE_BOOLEAN_FALSE
+
+                            return tag
+
 
                         words_len = len(words) - len(current_key)
                         words_len -= check_literal()
 
                         nargs = words_len + 1
-                        nargs = nargs - AnalyzeOptions()
-                        # nargs -= AnalyzeArgs()
+                        nargs -= AnalyzeOptions()
+                        nargs_count = nargs - AnalyzeArgs()
+                        narg_map = getNargMap()
+                        narg_count_map = getNargCountMap()
 
-                        if nargs - 1 < len(obj['_arguments']):
-                            arg = obj['_arguments'][nargs - 1 if nargs > 0 else 0]
+                        if nargs_count - 1 < len(obj['_arguments']):
+                            arg_index = nargs - 1 if nargs > 0 else 0
+
+                            arg = obj['_arguments'][narg_map[arg_index]]
 
                             name = arg[0]
                             argument: PrettyArgument = arg[1]
@@ -659,8 +713,48 @@ class ClickCompleter(Completer):
 
                             isChoice = bool(argument.type.name == 'choice' or argument.choices)
                             isBool = argument.type.name == 'boolean'
+                            isTuple = ' ' in argument.type.name
 
-                            if isChoice or isBool:
+                            if isTuple:
+                                type_obj = argument.type.types[narg_count_map[arg_index]]
+
+                                _values = []
+                                disp_meta = None
+
+                                if type_obj:
+                                    type_name = type_obj.name
+                                    if type_name == 'choice':
+                                        _values = [c for c in type_obj.choices if c]
+                                        isChoice = True
+                                    elif type_name == 'boolean':
+                                        isBool = True
+                                        _values = ['true', 'false']
+                                    elif type_name == 'float':
+                                        _values = ['0.0']
+                                    elif type_name == 'integer':
+                                        _values = ['0']
+                                    elif type_name == 'text':
+                                        _values = ['""']
+
+                                if not isChoice and not isBool:
+                                    meta_name = ('&#60;class :%s:&#62;' % type_name)
+                                    disp_meta = HTML("<style %s><i>%s</i></style>" % (colors.COMPLETION_OPTION_DESCRIPTION, meta_name))
+
+                                for value in _values:
+                                    tag = get_argument_display_tag(argument, value, isChoice, isBool)
+
+                                    yield Completion(
+                                        value,
+                                        start_position=0,
+                                        display=HTML("<{}>{}</{}>".format(
+                                            tag,
+                                            value,
+                                            tag if not 'style' in tag else 'style'
+                                        )),
+                                        display_meta = disp_meta
+                                    )
+
+                            elif isChoice or isBool:
                                 for choice in values:
                                     if not choice: continue
                                     if choice.startswith(word):

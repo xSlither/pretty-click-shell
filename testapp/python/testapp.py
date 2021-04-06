@@ -228,6 +228,7 @@ def test_click_tuple(test, t):
 @pcshell.option('--t', default=[], literal_tuple_type=[bool, bool], help='A typed tuple option')
 @pcshell.argument('test', type=(tuple_test_choice, bool), help='A click tuple type argument')
 @pcshell.argument('test2', type=float, help='A float argument')
+@pcshell.repeatable
 def test_arg_tuples(test, test2, t):
     """Test Tuple Argument Completion"""
     if IsShell:

@@ -383,8 +383,20 @@ class PrettyHelper:
                     if not isinstance(exists, list):
                         # Single Option
 
+                        def format_exists():
+                            _val_ = exists[1:-1]
+
+                            if _val_ == '[,': return '""'
+                            if _val_.replace('.', '', 1).isdigit():
+                                if '.' in _val_: return float(_val_)
+                                else: return int(_val_)
+                            if _val_.lower() == 'true' or _val_.lower() == 'false': return bool(_val_)
+                            return _val_
+
                         used_args = split_args(tuple_map)
                         value = (extract_tuple(self.name, used_args))
+
+                        value[0] = format_exists()
                         remove_mapitem(tuple_map, ('--%s' % self.name), (tuple_map['--%s_count' % self.name] - 1))
                         opt_val_count += 1
 

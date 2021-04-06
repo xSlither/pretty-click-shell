@@ -20,6 +20,8 @@ from . import globals as globs
 from ._completion import COMPLETION_TREE, deep_get, ClickCompleter
 from ._utils import HasKey
 
+from .pretty import PrettyArgument, PrettyOption
+
 
 
 def command_lexer(lexer, match):
@@ -100,9 +102,35 @@ def command_lexer(lexer, match):
             ret = 0
             if len(obj['_arguments']):
                 for arg in obj['_arguments']:
+                    _arg: PrettyArgument = arg[1]
+                    if _arg and HasKey('nargs', _arg) and _arg.nargs > 1:
+                        ret += (_arg.nargs - 1)
+            return ret
 
-                    if HasKey('nargs', arg) and arg.nargs > 1:
-                        ret += (arg.nargs - 1)
+        def getNargMap():
+            i = 0
+            ret = []
+            if len(obj['_arguments']):
+                for arg in obj['_arguments']:
+                    _arg: PrettyArgument = arg[1]
+                    if _arg and HasKey('nargs', _arg):
+                        for n in range(0, _arg.nargs):
+                            ret.append(i)
+                    else: ret.append(i)
+                    i += 1
+            return ret
+
+        def getNargCountMap():
+            ret = []
+            if len(obj['_arguments']):
+                for arg in obj['_arguments']:
+                    _arg: PrettyArgument = arg[1]
+                    if _arg and HasKey('nargs', _arg):
+                        i = 0
+                        for n in range(0, _arg.nargs):
+                            ret.append(i)
+                            i += 1
+                    else: ret.append(0)
             return ret
 
         def check_literal():
@@ -113,7 +141,7 @@ def command_lexer(lexer, match):
                         for item in original_words[i:]:
                             n += 1
                             if item.endswith(']'): break
-                except: return 0
+                except IndexError: return 0
                 return n
 
             ret = 0
@@ -137,6 +165,9 @@ def command_lexer(lexer, match):
         nargs = words_len
         nargs -= AnalyzeOptions()
         # nargs -= AnalyzeArgs()
+        nargs_count = nargs - AnalyzeArgs()
+        narg_map = getNargMap()
+        narg_count_map = getNargCountMap()
 
 
         if len(obj['_options']):
@@ -173,7 +204,7 @@ def command_lexer(lexer, match):
 
                         option_args = get_option_args()
                         if len(option_args) > option.nargs: 
-                            if len(obj['_arguments']) and (nargs - 1 < len(obj['_arguments'])): validArg = True
+                            if len(obj['_arguments']) and (nargs_count - 1 < len(obj['_arguments'])): validArg = True
                             if not validArg: return Name.InvalidCommand
 
                         if not validArg:
@@ -203,8 +234,10 @@ def command_lexer(lexer, match):
 
 
         if len(obj['_arguments']):
-            if nargs - 1 < len(obj['_arguments']):
-                arg = obj['_arguments'][nargs - 1 if nargs > 0 else 0]
+            if nargs_count - 1 < len(obj['_arguments']):
+                arg_index = nargs - 1 if nargs > 0 else 0
+
+                arg = obj['_arguments'][narg_map[arg_index]]
 
                 name = arg[0]
                 argument: PrettyArgument = arg[1]
@@ -212,6 +245,7 @@ def command_lexer(lexer, match):
 
                 isChoice = bool(argument.type.name == 'choice' or argument.choices)
                 isBool = argument.type.name == 'boolean'
+                isTuple = ' ' in argument.type.name
 
                 # Verified Argument Parameter
                 if isChoice and word in values: return Name.Attribute
@@ -220,11 +254,30 @@ def command_lexer(lexer, match):
                 elif isBool and word in values: return Keyword
                 elif isBool: return Name.InvalidCommand
 
+                elif isTuple:
+                    # Click Tuple Type
+                    type_obj = argument.type.types[narg_count_map[arg_index]]
+
+                    if type_obj:
+                        type_name = type_obj.name
+
+                        if type_name == 'choice':
+                            values = [c for c in type_obj.choices if c]
+                            if word in values: return Name.Attribute
+                            else: return Name.InvalidCommand
+                            
+                        elif type_name == 'boolean':
+                            values = ['true', 'false']
+                            if word in values: return Keyword
+                            else: return Name.InvalidCommand
+
+                        else: return Text
+
                 else: return Text
 
             else: return Name.InvalidCommand # Invalid Argument
 
-        elif nargs > -1: return Name.InvalidCommand # Invalid Argument
+        elif nargs_count > -1: return Name.InvalidCommand # Invalid Argument
 
         return Text # Default
 
