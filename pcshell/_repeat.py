@@ -59,39 +59,55 @@ def BuildCommandString(ctx: click.Context) -> None:
 
                 # Typed Tuple List Parameter
                 elif isinstance(ctx.params[key], list):
-                    def convert_list():
+                    def convert_list(lst=ctx.params[key]):
                         return [
                             str(i) if not type(i) == str and not type(i) == bool 
                                 else '"%s"' % str(i) if type(i) == str 
                                     else str(i).lower() 
-                            for i in ctx.params[key]
+                            for i in lst
                         ]
 
-                    if not key in args:
-                        if ctx.params[key]:
-                            ret += ' --{key} [{value}]'.format(key=key, value=', '.join(convert_list()))
-                        else: ret += ' --{key} []'.format(key=key)
-                    else: ret += ' [{value}]'.format(value=', '.join(convert_list()))
+                    def add_typed_tuple_param(lst=convert_list(), root=ctx.params[key]):
+                        ret = ''
+                        if not key in args:
+                            if root:
+                                ret += ' --{key} [{value}]'.format(key=key, value=', '.join(lst))
+                            else: ret += ' --{key} []'.format(key=key)
+                        else: ret += ' [{value}]'.format(value=', '.join(lst))
+                        return ret
+
+                    if not isinstance(ctx.params[key][0], list): 
+                        ret += add_typed_tuple_param()
+                    else:
+                        for item in ctx.params[key]:
+                            tup = convert_list(item)
+                            ret += add_typed_tuple_param(tup, item)
 
                 # Click Tuple Parameter
                 elif isinstance(ctx.params[key], tuple):
-                    isArg = True
-                    if not key in args: 
-                        ret += ' --{key}'.format(key=key)
-                        isArg = False
+                    isArg = not key in args
 
-                    for val in ctx.params[key]:
-                        if not isArg:
-                            if val:
-                                ret += ' {value}'.format(key=key, value=val)
+                    def add_click_tuple_param(lst=ctx.params[key]):
+                        ret = ' --{key}'.format(key=key)
+                        for val in lst:
+                            if not isArg:
+                                if val:
+                                    ret += ' {value}'.format(value=val)
+                                else:
+                                    if isinstance(val, str):
+                                        ret += ' ""'
+                                    else: ret += ' null'
                             else:
                                 if isinstance(val, str):
-                                    ret += ' ""'
-                                else: ret += ' null'
-                        else:
-                            if isinstance(val, str):
-                                ret += ' "{value}"'.format(value=val)
-                            else: ret += ' {value}'.format(value=val)
+                                    ret += ' "{value}"'.format(value=val)
+                                else: ret += ' {value}'.format(value=val)
+                        return ret
+
+                    if not isinstance(ctx.params[key][0], tuple):
+                        ret += add_click_tuple_param()
+                    else:
+                        for val in ctx.params[key]:
+                            ret += add_click_tuple_param(val)
 
 
         globs.__LAST_COMMAND__ = ret
