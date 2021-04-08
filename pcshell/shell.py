@@ -12,6 +12,7 @@ from colorama import Style
 
 from . import globals as globs
 from . import _colors as colors
+from .chars import IGNORE_LINE
 from .pretty import PrettyGroup, PrettyCommand
 from .multicommand import CUSTOM_COMMAND_PROPS, CustomCommandPropsParser
 from .utils import HasKey
@@ -296,11 +297,14 @@ class BaseShellCommands:
             os.system('python "%s"' % sys.argv[0].replace('\\', '/'))
 
             # Exits the current shell once it's child has closed
-            shell.shell._pipe_input.send_text('exit\r')
             globs.__IS_REPEAT__ = True
+            globs.__IS_EXITING__ = True
             if shell.shell.readline:
                 globs.__PREV_STDIN__ = sys.stdin
                 sys.stdin = StringIO(globs.__LAST_COMMAND__)
+            else:
+                shell.shell._pipe_input.send_text('exit\r')
+                click.echo(IGNORE_LINE)
 
 
     @staticmethod

@@ -193,7 +193,7 @@ def command_lexer(lexer, match):
                             isBool = True
                             values = ['true', 'false']
                     else:
-                        # Click Tuple Type
+                        # Click Tuple Type Option
 
                         def get_option_args():
                             ret = []
@@ -255,7 +255,7 @@ def command_lexer(lexer, match):
                 elif isBool: return Name.InvalidCommand
 
                 elif isTuple:
-                    # Click Tuple Type
+                    # Click Tuple Type Argument
                     type_obj = argument.type.types[narg_count_map[arg_index]]
 
                     if type_obj:

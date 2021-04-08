@@ -1,9 +1,11 @@
-from typing import List, Callable
+from typing import List, Callable, Union
 
 import os
 import sys
 import re
 import json
+import shlex
+import math
 
 import click
 from click.core import (
@@ -14,6 +16,9 @@ from click.core import (
     augment_usage_errors, invoke_param_callback,
     iter_params_for_processing,
     split_opt
+)
+from click.parser import (
+    OptionParser, _unpack_args
 )
 
 from colorama import Style
@@ -436,11 +441,14 @@ class PrettyHelper:
                             valid = False
                             break
 
-                    if not valid: raise click.BadParameter('Tuple type does not match.\n\n\tProvided: {}\n\tExpected: {}'.format(value, self.literal_tuple_type))
+                    if not valid:
+                        raise click.BadParameter('Tuple type does not match.\n\n\tProvided: {}\n\tExpected: {}'.format(value, self.literal_tuple_type))
 
 
                 nargs = 0
+                total_nargs = 0
                 cmd_nargs = 0
+                optional_args = 0
                 cmd: Command = ctx.command
                 
                 def get_option(name: str) -> click.Option:
@@ -461,14 +469,26 @@ class PrettyHelper:
                         if a.required:
                             cmd_nargs += 1
                             if HasKey('nargs', a): cmd_nargs += a.nargs - 1
+                        else:
+                            optional_args += 1
+
+                        total_nargs += 1
+                        if HasKey('nargs', a): total_nargs += a.nargs - 1
 
 
                 if nargs < cmd_nargs:
                     raise click.ClickException(
-                        'Required Arguments are missing. Provided {} argument(s); expected {}'.format(
+                        'Required Arguments are missing. Provided {} argument(s); expected {} (minimum)'.format(
                             nargs, cmd_nargs
                         )
                     )
+
+                elif nargs > total_nargs:
+                    raise click.ClickException(
+                        'Too many Arguments. Provided {} argument(s); expected {} (maximum)'.format(
+                            nargs, total_nargs
+                        )
+                    ) 
                         
 
                 if len(value) and isinstance(value[0], list):
@@ -565,3 +585,285 @@ class PrettyHelper:
 
         ctx.args = args
         return args
+
+
+class PrettyParser(OptionParser):
+
+    def __anlayzeTuples(self, option: click.Option, value: str, cmd_nargs: int, args) -> int:
+
+        from .._completion import COMPLETION_TREE, deep_get
+
+        true_line = globs.__CURRENT_LINE__.rstrip()
+        line = (((' '.join(globs.__SHELL_PATH__) + ' ') if len(globs.__SHELL_PATH__) else '') + true_line).rstrip()
+
+        if ' ' in line: words = line.split(' ')
+        else: words = [line]
+
+        if ' ' in true_line: original_words = true_line.rstrip().split(' ')
+        else: original_words = [true_line]
+
+        priorOption = words[len(words) - 3] if len(words) > 2 else None
+
+        current_key = []
+        for i in range(0, len(words)):
+            if i < len(globs.__SHELL_PATH__): continue
+
+            try:
+                if deep_get(COMPLETION_TREE, *words[:len(words) - i]):
+                    if len(original_words) > 2: 
+                        current_key = words[:(len(words) - (i - 1)) + len(globs.__SHELL_PATH__)]
+                    elif '--' in words: current_key = words[:len(words) - i] 
+                    else:
+                        current_key = words[:len(words) - (i - 1)]
+                        if deep_get(COMPLETION_TREE, *current_key): break
+
+                elif priorOption and '--' in priorOption:
+                    current_key = words[:len(words) - (i + 1)]
+                    if deep_get(COMPLETION_TREE, *current_key):  break
+
+                else:
+                    key = words[:len(words) - (i + 1)]
+                    if deep_get(COMPLETION_TREE, *key):
+                        current_key = key
+                        break
+            except Exception as e: break
+
+        obj = deep_get(COMPLETION_TREE, *current_key)
+        obj2 = deep_get(COMPLETION_TREE, *words)
+
+
+        def get_option(name: str) -> click.Option:
+            if len(obj['_options']):
+                try: return [x for x in obj['_options'] if x[0] == name][0][1]
+                except IndexError: pass
+            return None
+
+        def get_option_names() -> List[str]:
+            expression = r'(?<=--)([a-zA-Z0-9]*)(?=\s)'
+            return re.findall(expression, line)
+
+        def AnalyzeOptions():
+            option_names = get_option_names()
+            ret = 0
+            for oName in option_names:
+                option = get_option('--%s' % oName)
+                if option:
+                    if not (option.is_bool_flag or option.is_flag): 
+                        ret += 2
+                        if HasKey('nargs', option) and option.nargs > 1:
+                            ret += (option.nargs - 1)
+                    else: ret += 1
+            return ret
+
+
+        def AnalyzeArgs():
+            ret = 0
+            if len(obj['_arguments']):
+                for arg in obj['_arguments']:
+                    _arg: PrettyArgument = arg[1]
+                    if _arg and HasKey('nargs', _arg) and _arg.nargs > 1:
+                        ret += (_arg.nargs - 1)
+            return ret
+
+        def check_literal():
+            def check_tuple(i: int) -> int:
+                n = 0
+                try:
+                    if original_words[i].startswith('['):
+                        for item in original_words[i:]:
+                            n += 1
+                            if item.endswith(']'): break
+                except IndexError: return 0
+                return n
+
+            ret = 0
+            ii = 0
+            for w in range(0, len(original_words)):
+                if ii > w: continue
+
+                if original_words[w].startswith('--'):
+                    n = check_tuple(ii + 1)
+                    if n > 0:
+                        ret += n - 1
+                        ii += n + 1
+                        continue
+                ii += 1
+            return ret
+
+        def getNargMap():
+            i = 0
+            ret = []
+            if len(obj['_arguments']):
+                for arg in obj['_arguments']:
+                    _arg: PrettyArgument = arg[1]
+                    if _arg and HasKey('nargs', _arg):
+                        for n in range(0, _arg.nargs):
+                            ret.append(i)
+                    else: ret.append(i)
+                    i += 1
+            return ret
+
+        def getNargCountMap():
+            ret = []
+            if len(obj['_arguments']):
+                for arg in obj['_arguments']:
+                    _arg: PrettyArgument = arg[1]
+                    if _arg and HasKey('nargs', _arg):
+                        i = 0
+                        for n in range(0, _arg.nargs):
+                            ret.append(i)
+                            i += 1
+                    else: ret.append(0)
+            return ret
+
+
+        words_len = len(words) - len(current_key)
+        words_len -= check_literal()
+
+        nargs = words_len
+        nargs -= AnalyzeOptions()
+        nargs_count = nargs - AnalyzeArgs()
+        narg_map = getNargMap()
+        narg_count_map = getNargCountMap()
+
+        flag_valid_comma_arg = False
+        if len(obj['_arguments']):
+            if nargs_count - 1 < len(obj['_arguments']):
+                arg_index = nargs - 1 if nargs > 0 else 0
+                arg = obj['_arguments'][narg_map[arg_index]]
+
+                flag_valid_comma_arg = arg and (nargs == arg_index)
+
+
+        query = '(?<=--{name}\s)(\[.*?\])'.format(name=option.name)
+        match = re.search(query, line)
+
+        from .._lexer import ShellLexer
+        from pygments.token import Name
+        lexer = ShellLexer()
+        tokens = lexer.get_tokens(line)
+
+        invalid = False
+        for token in tokens:
+            if token[0] == Name.InvalidCommand:
+                invalid = True
+                break
+
+        json_string = '[%s]' % match[0]
+        if json_string[1] == '[': json_string = json_string[1:]
+        if json_string[-1] == ']': json_string = json_string[:-1]
+
+        try:
+            tuple_values = json.loads(json_string)
+        except: return 1
+
+        if tuple_values and len(option.literal_tuple_type) == len(tuple_values):
+            if invalid: 
+                if nargs > cmd_nargs: return -1
+                else: return -2
+            else: 
+                if not flag_valid_comma_arg: 
+                    if ']' in value and json_string.endswith(value):
+                        return 0
+                    elif value.endswith(',') and (' %s ' % value) in json_string:
+                        return 0
+                    return -1
+                else: return 0
+        else: return 1
+
+
+    def _process_args_for_args(self, state):
+        pargs, args = _unpack_args(
+            state.largs + state.rargs, [x.nargs for x in self._args]
+        )
+
+        total_nargs = 0
+        cmd_nargs = 0
+        optional_args = 0
+
+
+        def get_tuple_insert_index(option, value):
+            true_line = globs.__CURRENT_LINE__.rstrip()
+            line = (((' '.join(globs.__SHELL_PATH__) + ' ') if len(globs.__SHELL_PATH__) else '') + true_line).rstrip()
+
+            query = '(?<=--{name}\s)(\[.*?\])'.format(name=option.name)
+            match = re.search(query, line)
+
+            json_string = '[%s]' % match[0]
+            if json_string[1] == '[': json_string = json_string[1:]
+            if json_string[-1] == ']': json_string = json_string[:-1]
+
+            try:
+                tuple_values = json.loads(json_string)
+            except: return 0
+
+            i = 0
+            for item in tuple_values:
+                try:
+                    if str(value[:-1]) == str(item): break
+                except: pass
+                
+                try:
+                    if int(value[:-1]) == item: break
+                except: pass
+
+                try:
+                    if float(value[:-1]) == item: break
+                except: pass
+
+                try:
+                    b = str(item).lower()
+                    if b == 'true' or b == 'false':
+                        if str(item).lower() == value[:-1].lower(): break 
+                except: pass
+
+                i += 1
+
+            if i <= (len(tuple_values) / 2):
+                return round(i / 2)
+            else: return math.ceil(i / 2)
+
+
+        for idx, arg in enumerate(self._args):
+            if arg.obj.required:
+                cmd_nargs += 1
+                if HasKey('nargs', arg.obj): cmd_nargs += arg.obj.nargs - 1
+            else: optional_args += 1
+
+            total_nargs += 1
+            if HasKey('nargs', arg.obj): total_nargs += arg.obj.nargs - 1
+
+        used_optional_narg = 0
+        for idx, arg in enumerate(self._args):
+            if not arg.obj.required:
+
+                if used_optional_narg < optional_args:
+                    if (pargs[idx] and len(pargs[idx])) and (pargs[idx][-1] == ',' or pargs[idx][-1] == ']'):
+                        try: prev_option = state.order[used_optional_narg]
+                        except: pass
+
+                        if prev_option and prev_option.literal_tuple_type:
+
+                            analyze_result = self.__anlayzeTuples(prev_option, pargs[idx], total_nargs, args)
+
+                            if analyze_result == 0:
+                                
+                                args.insert(get_tuple_insert_index(prev_option, pargs[idx]), pargs[idx])
+                                # used_optional_narg += 1
+
+                            else:
+                                if analyze_result < 0: 
+                                    arg.process(pargs[idx], state)
+                                    if analyze_result < -1:
+                                        args.pop(0)
+                                elif analyze_result > 0:
+                                    args.pop(0)
+                                    used_optional_narg += 1
+
+                        else: arg.process(pargs[idx], state)
+                    else: arg.process(pargs[idx], state)
+                else: arg.process(pargs[idx], state)
+            else: arg.process(pargs[idx], state)
+
+        state.largs = args
+        state.rargs = []

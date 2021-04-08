@@ -501,9 +501,10 @@ class ClickCompleter(Completer):
                                             return val
 
                                         def lastword_is_option() -> bool:
-                                            l = len(original_line)
-                                            return (original_line[l - 3] == '-' and original_line[l - 2] == '-' 
-                                                and original_line[l - 1] == option.name) if l > 2 else False
+                                            _line_ = original_line.rstrip()
+                                            l = len(_line_)
+                                            l2 = len(option.name)
+                                            return (_line_[(l - l2) - 2:] == '--%s' % option.name) if l > 2 else False
 
                                         mod = 1
                                         orig_tuple = ClickCompleter.get_current_tuple_from_line(line)
@@ -515,7 +516,7 @@ class ClickCompleter(Completer):
 
                                         if orig_tuple: true_tuple = re.sub(r"((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$", '', orig_tuple)
 
-                                        if not invalid and true_tuple.endswith(']'): invalid = True
+                                        if not invalid and (true_tuple and true_tuple.endswith(']')): invalid = True
                                         # if re.search(r"(((,[\s]*\])|(,[\s]*)|((,\][\s]*)))$)|((\"[\s]*,[\s]*\")(?![\w|\W]*\"))", orig_tuple): mod = 1
 
                                         if not invalid:

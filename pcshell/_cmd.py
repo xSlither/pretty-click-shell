@@ -35,9 +35,9 @@ try:
 except: pass
 
 
-# ######################################
+########################################
 globs.__IsShell__ = len(sys.argv) == 1 #
-# ######################################
+########################################
 
 
 class ClickCmd(Cmd, object):
@@ -214,7 +214,9 @@ class ClickCmd(Cmd, object):
                             if not globs.__IS_REPEAT_EOF__:
                                 line = self.prompter.prompt()
                             elif self._pipe_input:
-                                line = self.piped_prompter.prompt()
+                                if not globs.__IS_EXITING__:
+                                    line = self.piped_prompter.prompt()
+                                else: return
 
                     except EOFError:
                         if not globs.__IS_REPEAT_EOF__:
@@ -246,8 +248,9 @@ class ClickCmd(Cmd, object):
                 # Safely handle calling command and pretty-displaying output / errors
                 if line.strip():
                     if globs.__IS_REPEAT__:
-                        # If stream source is from the 'repeat' command, display the "visible" repeated command
-                        click.echo(globs.__LAST_COMMAND_VISIBLE__)
+                        if not globs.__IS_EXITING__:
+                            # If stream source is from the 'repeat' command, display the "visible" repeated command
+                            click.echo(globs.__LAST_COMMAND_VISIBLE__)
 
                     def fixTupleSpacing(val):
                         if '[' in val or ']' in val:
@@ -267,7 +270,7 @@ class ClickCmd(Cmd, object):
                         line = self.precmd(line)
                         stop = self.onecmd(line)
                         stop = self.postcmd(stop, line)
-                        if not stop: 
+                        if not stop and not globs.__IS_EXITING__: 
                             line = ''
                             click.echo(file=self._stdout)
                     except KeyboardInterrupt:
@@ -279,7 +282,7 @@ class ClickCmd(Cmd, object):
                             globs.__IS_REPEAT__ = False
                             globs.__IS_REPEAT_EOF__ = True
                             if (not self.readline) and self._pipe_input:
-                                if globs.__LAST_COMMAND__:
+                                if globs.__LAST_COMMAND__ and not globs.__IS_EXITING__:
                                     self._pipe_input.send_text(globs.__LAST_COMMAND__ + '\r')
                                 
                         elif self._pipe_input and globs.__IS_REPEAT_EOF__:

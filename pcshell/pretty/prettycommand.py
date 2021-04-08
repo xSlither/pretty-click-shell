@@ -4,7 +4,7 @@ import re
 import click
 from click.core import iter_params_for_processing, make_str
 
-from .pretty import PrettyHelper
+from .pretty import PrettyHelper, PrettyParser
 from .prettyoption import PrettyOption
 
 
@@ -45,3 +45,11 @@ class PrettyCommand(click.Command):
 
     def parse_args(self, ctx, args):
         return PrettyHelper.parse_args(self, ctx, args, PrettyCommand.supportsLiterals)
+
+
+    def make_parser(self, ctx):
+        """Creates the underlying option parser for this command."""
+        parser = PrettyParser(ctx)
+        for param in self.get_params(ctx):
+            param.add_to_parser(parser, ctx)
+        return parser
