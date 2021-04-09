@@ -584,11 +584,13 @@ class ClickCompleter(Completer):
                             if (not original_words_prev.count('--%s' % option.name) > 0) or option.multiple:
                                 if name.startswith(word):
                                     h = html_escape(option.help) if option.help else ''
+                                    meta_text = '{}{}'.format('(Optional) ' if not option.required else '', h)
+
                                     yield Completion(
                                         name,
                                         start_position=-len(word),
                                         display=HTML("<%s>%s</%s>" % (colors.COMPLETION_OPTION_NAME, name, colors.COMPLETION_OPTION_NAME)),
-                                        display_meta=HTML("<style %s><i>%s</i></style>" % (colors.COMPLETION_OPTION_DESCRIPTION, h))
+                                        display_meta=HTML("<style %s><i>%s</i></style>" % (colors.COMPLETION_OPTION_DESCRIPTION, meta_text))
                                     )
 
                     # Recommend Arguments
@@ -737,9 +739,12 @@ class ClickCompleter(Completer):
                                     elif type_name == 'text':
                                         _values = ['""']
 
-                                if not isChoice and not isBool:
-                                    meta_name = ('&#60;class :%s:&#62;' % type_name)
-                                    disp_meta = HTML("<style %s><i>%s</i></style>" % (colors.COMPLETION_OPTION_DESCRIPTION, meta_name))
+                                if not isChoice and not isBool: meta_name = ('&#60;class :%s:&#62;' % type_name)
+                                else: meta_name = '&#60;class :choice:&#62;' if isChoice else '&#60;class :bool:&#62;'
+
+                                meta_text = '{}{}'.format('(Optional) ' if not argument.required else '', h)
+                                meta_value = '{} {}'.format(meta_name, meta_text)
+                                disp_meta = HTML("<style %s><i>%s</i></style>" % (colors.COMPLETION_ARGUMENT_DESCRIPTION, meta_value))
 
                                 for value in _values:
                                     tag = get_argument_display_tag(argument, value, isChoice, isBool)
@@ -775,11 +780,13 @@ class ClickCompleter(Completer):
                                 if argument.type.name == 'integer': val = '0'
                                 if argument.type.name == 'text': val = '""'
 
+                                meta_text = '{}{}'.format('(Optional) ' if not argument.required else '', h)
+
                                 yield Completion(
                                     val,
                                     start_position=0,
                                     display=HTML("<%s>%s</%s>" % (colors.COMPLETION_ARGUMENT_NAME, name, colors.COMPLETION_ARGUMENT_NAME)),
-                                    display_meta=HTML("<style %s><i>%s</i></style>" % (colors.COMPLETION_ARGUMENT_DESCRIPTION, h))
+                                    display_meta=HTML("<style %s><i>%s</i></style>" % (colors.COMPLETION_ARGUMENT_DESCRIPTION, meta_text))
                                 )
 
         except Exception as e: return

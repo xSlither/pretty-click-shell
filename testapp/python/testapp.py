@@ -46,8 +46,8 @@ CONTEXT_SETTINGS = dict(
     help_option_names=['-h', '--help']
 )
 
-__SHELL_HEADER__ = '============================================'
-__SHELL_FOOTER__ = '============================================'
+__SHELL_HEADER__ = '=' * 44
+__SHELL_FOOTER__ = '=' * 44
 __SHELL_INTRO__ = '\nPython Version: {pyVer}\nClick Version: {clVer}\nPrompt Toolkit Version: {ptVer}\n\n{header}\nTest Application Shell - v.{ver}\n{footer}\n'.format(
     pyVer=platform.python_version(), clVer=click.__version__, ver=__version__, ptVer=prompt_toolkit.__version__,
     header=__SHELL_HEADER__, footer=__SHELL_FOOTER__

@@ -360,25 +360,33 @@ class PrettyHelper:
                     return dic
 
                 def split_args(dic: dict) -> List[str]:
-                    i = dic['--%s' % self.name][dic['--%s_count' % self.name] - 1]
-                    ii = 0
+                    try:
+                        i = dic['--%s' % self.name][dic['--%s_count' % self.name] - 1]
+                        ii = 0
 
-                    true_args = []
-                    used_args = []
-                    
-                    for arg in ctx.original_args:
-                        if arg.endswith(']'): 
-                            if not ii == i: true_args.append(arg)
-                            else: used_args.append(arg)
-                            ii += 1
-                            continue
-                    
-                        if ii == i: 
-                            used_args.append(arg)
-                            continue
-                        true_args.append(arg)
+                        true_args = []
+                        used_args = []
+                        
+                        for arg in ctx.original_args:
+                            if arg.endswith(']'): 
+                                if not ii == i: true_args.append(arg)
+                                else: used_args.append(arg)
+                                ii += 1
+                                continue
+                        
+                            if ii == i: 
+                                used_args.append(arg)
+                                continue
+                            true_args.append(arg)
 
-                    return used_args
+                        return used_args
+
+                    except IndexError:
+                        raise click.ClickException(
+                            'Option --{} could not be parsed. Please verify syntax'.format(
+                                self.name
+                            )
+                        ) 
 
 
                 if exists:
@@ -738,7 +746,7 @@ class PrettyParser(OptionParser):
         query = '(?<=--{name}\s)(\[.*?\])'.format(name=option.name)
         match = re.search(query, line)
 
-        from .._lexer import ShellLexer
+        from .._lexer import ShellLexer # Import here to prevent circular reference. Need to refactor code to separte module
         from pygments.token import Name
         lexer = ShellLexer()
         tokens = lexer.get_tokens(line)
