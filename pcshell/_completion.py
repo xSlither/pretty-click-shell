@@ -905,11 +905,18 @@ def BuildCompletionTree(ctx: click.Context):
 
         if len(parents):
             if not deep_get(COMPLETION_TREE, *parents):
-                deep_set(COMPLETION_TREE, { 
-                    "isGroup": True, 
-                    "isRoot": False,
-                    "CommandTree": parents
-                }, *parents)
+                previous_parent_tree = []
+                current_parent_tree = []
+
+                for parent in parents:
+                    current_parent_tree.append(parent)
+                    if not deep_get(COMPLETION_TREE, *current_parent_tree):
+                        deep_set(COMPLETION_TREE, { 
+                            "isGroup": True, 
+                            "isRoot": False,
+                            "CommandTree": previous_parent_tree
+                        }, *current_parent_tree)
+                        previous_parent_tree.append(parent)
 
         keys = parents.copy()
         if not isinstance(cmd, click.Group):
@@ -929,11 +936,25 @@ def BuildCompletionTree(ctx: click.Context):
             from .shell import Shell
             keys.append(cmd.name)
             dic = deep_get(COMPLETION_TREE, *keys)
-            dic['isShell'] = bool(isinstance(cmd, Shell) and cmd.isShell)
-            dic['isHidden'] = cmd.hidden
-            dic['_options'] = opts
-            dic['_arguments'] = args
-            dic['_help'] = cmd.short_help or cmd.help
+
+            if not dic:
+                deep_set(COMPLETION_TREE, {
+                    "isGroup": True,
+                    "CommandTree": parents,
+                    "isShell": bool(isinstance(cmd, Shell) and cmd.isShell),
+                    "isRoot": False,
+                    "isHidden": cmd.hidden,
+                    "_options": opts,
+                    "_arguments": args,
+                    "_help": cmd.short_help or cmd.help
+                }, *keys)
+
+            else:
+                dic['isShell'] = bool(isinstance(cmd, Shell) and cmd.isShell)
+                dic['isHidden'] = cmd.hidden
+                dic['_options'] = opts
+                dic['_arguments'] = args
+                dic['_help'] = cmd.short_help or cmd.help
 
         elif root:
             COMPLETION_TREE['isGroup'] = True

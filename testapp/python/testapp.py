@@ -161,6 +161,11 @@ def someshell():
 #  ANCHOR Command Tree | api -> x
 #--------------------------------------------
 
+@api.group(context_settings=CONTEXT_SETTINGS)
+def another():
+    """A sub-group of the API Group"""
+
+
 @api.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
 @pcshell.argument('arg1', type=str, help="Some argument for this command")
 @pcshell.option('--opt1', type=pcshell.types.Choice(['blue', 'red'], display_tags=['ansiblue', 'style fg="#dc322f"']), help="Some option for this command")
@@ -179,6 +184,20 @@ def test2(date, dev):
     """Some Other API Command"""
     if IsShell: click.echo('Effective Date was "{}", and DEV Mode = "{}"'.format(date, dev))
     return { 'date': date, 'devMode': dev }
+
+#--------------------------------------------
+
+
+#--------------------------------------------
+#  ANCHOR Command Tree | api -> another -> x
+#--------------------------------------------
+
+@another.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
+@pcshell.option('--opt1', type=pcshell.types.Choice(['blue', 'red'], display_tags=['ansiblue', 'style fg="#dc322f"']), help="Some option for this command")
+def test(opt1):
+    """Some Other Api Command"""
+    if IsShell: click.echo('Provided Parameter of "{}"'.format(opt1))
+    return { 'someProp': opt1 }
 
 #--------------------------------------------
 
@@ -292,7 +311,4 @@ def cmd(choice):
 # ANCHOR Main Routine
 
 if __name__ == '__main__':
-    try: testapp()
-    except Exception as e: 
-        print(str(e)) 
-    finally: print('')
+    testapp()
