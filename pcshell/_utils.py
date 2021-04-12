@@ -1,4 +1,6 @@
 from typing import List
+
+import os
 import re
 
 from .types import HiddenPassword
