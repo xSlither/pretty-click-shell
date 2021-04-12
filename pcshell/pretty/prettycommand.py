@@ -2,7 +2,7 @@ from typing import List
 import re
 
 import click
-from click.core import iter_params_for_processing, make_str
+from click.core import iter_params_for_processing, make_str, OptionParser
 
 from .pretty import PrettyHelper, PrettyParser
 from .prettyoption import PrettyOption
@@ -49,7 +49,13 @@ class PrettyCommand(click.Command):
 
     def make_parser(self, ctx):
         """Creates the underlying option parser for this command."""
-        parser = PrettyParser(ctx)
+        bUsePromptToolkit = False
+        try:
+            import prompt_toolkit
+            bUsePromptToolkit = True
+        except: pass
+
+        parser = PrettyParser(ctx) if bUsePromptToolkit else OptionParser(ctx)
         for param in self.get_params(ctx):
             param.add_to_parser(parser, ctx)
         return parser
