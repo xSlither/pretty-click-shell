@@ -10,6 +10,7 @@
  - Support for Typed Tuple Literals as Option Parameters
  - Bult-in Shell Commands: repeat, clear screen, clear history, etc.
  - Command/Group Aliases
+ - Suggestions for mistyped commands
  - Full support for Windows OS
  - Full customization of colors
 
