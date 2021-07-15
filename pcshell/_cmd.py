@@ -56,7 +56,7 @@ class ClickCmd(Cmd, object):
         readline=None, 
         complete_while_typing=True, 
         fuzzy_completion=True, 
-        mouse_support=True,
+        mouse_support=False,
         lexer=True,
     *args, **kwargs):
         self._stdout = kwargs.get('stdout')

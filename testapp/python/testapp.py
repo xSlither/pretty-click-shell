@@ -193,8 +193,11 @@ def test2(date, dev):
 #--------------------------------------------
 
 @another.command(context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
+@pcshell.argument('test', type=str, help='A string argument')
+@pcshell.argument('test2', type=int, help='An int argument')
+@pcshell.argument('test3', type=float, help='A float argument')
 @pcshell.option('--opt1', type=pcshell.types.Choice(['blue', 'red'], display_tags=['ansiblue', 'style fg="#dc322f"']), help="Some option for this command")
-def test(opt1):
+def test(test, test2, test3, opt1):
     """Some Other Api Command"""
     if IsShell: click.echo('Provided Parameter of "{}"'.format(opt1))
     return { 'someProp': opt1 }

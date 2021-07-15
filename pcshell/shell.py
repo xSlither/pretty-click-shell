@@ -51,7 +51,7 @@ class Shell(PrettyGroup):
         readline=None, 
         complete_while_typing=True, 
         fuzzy_completion=True, 
-        mouse_support=True,
+        mouse_support=False,
         lexer=True,
     **attrs):
         # Allows this class to be used as a subclass without a new shell instance attached
@@ -228,6 +228,8 @@ class MultiCommandShell(Shell):
 
             tmpCommand = None
             origHelpTxt = None
+            aliases = []
+
             try:
                 if isinstance(args[0], list):
                     _args = [args[0][0]] + list(args[1:])
@@ -236,6 +238,7 @@ class MultiCommandShell(Shell):
                             cmd: PrettyCommand = prettyCommand(alias, None, **kwargs)(f)
                             origHelpTxt = cmd.help
                             cmd.alias = True
+                            cmd.aliases = []
                             cmd.help = "(Alias for '{c}') {h}".format(c = _args[0], h = cmd.help)
                             cmd.short_help = "Alias for '{}'".format(_args[0])
                             cmd.true_hidden = cmd.hidden
@@ -247,12 +250,15 @@ class MultiCommandShell(Shell):
                         else:
                             cmd = deepcopy(tmpCommand)
                             cmd.alias = True
+                            cmd.aliases = []
                             cmd.name = alias
                             cmd.help = "(Alias for '{c}') {h}".format(c = _args[0], h = origHelpTxt)
                             cmd.short_help = "Alias for '{}'".format(_args[0])
                             cmd.hidden = True
                             self.__assign_invalidKeys(old_kwargs, cmd)
                             super(MultiCommandShell, self).add_command(cmd)
+
+                        aliases.append(alias)
                 else:
                     _args = args
 
@@ -260,6 +266,7 @@ class MultiCommandShell(Shell):
                 if tmpCommand is None:
                     cmd: PrettyCommand = prettyCommand(*_args, **kwargs)(f)
                     cmd.alias = False
+                    cmd.aliases = aliases
                     self.__assign_invalidKeys(old_kwargs, cmd)
                     super(MultiCommandShell, self).add_command(cmd)
                     return cmd
@@ -267,6 +274,7 @@ class MultiCommandShell(Shell):
                 else:
                     cmd = deepcopy(tmpCommand)
                     cmd.alias = False
+                    cmd.aliases = aliases
                     cmd.name = _args[0]
                     cmd.help = origHelpTxt
                     cmd.short_help = ''
@@ -278,6 +286,7 @@ class MultiCommandShell(Shell):
             except:
                 cmd: PrettyCommand = prettyCommand(*args, **kwargs)(f)
                 cmd.alias = False
+                cmd.aliases = aliases
                 self.__assign_invalidKeys(old_kwargs, cmd)
                 super(MultiCommandShell, self).add_command(cmd)
                 return cmd
