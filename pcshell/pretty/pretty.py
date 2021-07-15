@@ -93,6 +93,11 @@ class PrettyHelper:
                         )
                         args.append((name, rv))
 
+        if HasKey('aliases', self) and len(self.aliases) > 0:
+            with formatter.section('{fore}{back}{style}Aliases{reset}'.format(fore=colors.HELP_ALIASES_HEADER_FORE, back=colors.HELP_ALIASES_HEADER_BACK, style=colors.HELP_ALIASES_HEADER_STYLE, reset=Style.RESET_ALL)):
+                formatter.write_dl([('{style}{txt}{reset}'.format(style=colors.HELP_ALIASES_ALIAS_STYLE, txt=', '.join(self.aliases), reset=Style.RESET_ALL), '')])
+                formatter.write_paragraph()
+
         if args:
             with formatter.section('{fore}{back}{style}Arguments{reset}'.format(fore=colors.HELP_ARGUMENT_HEADER_FORE, back=colors.HELP_ARGUMENT_HEADER_BACK, style=colors.HELP_ARGUMENT_HEADER_STYLE, reset=Style.RESET_ALL)):
                 formatter.write_dl(args)

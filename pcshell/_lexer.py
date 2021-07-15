@@ -24,6 +24,62 @@ from .pretty import PrettyArgument, PrettyOption
 
 
 
+def option_lexer(lexer, match):
+    parsed_word = match.group(0)
+    
+    true_line = globs.__CURRENT_LINE__
+    if ' ' in true_line.rstrip():
+        begin_line = true_line[0: match.start()]
+        parsed_line = true_line[0: (len(begin_line) + len(true_line[match.start():].split(' ')[0]))]
+    else: parsed_line = true_line
+
+    line = (((' '.join(globs.__SHELL_PATH__) + ' ') if len(globs.__SHELL_PATH__) else '') + parsed_line).rstrip()
+
+    if ' ' in line: words = line.split(' ')
+    else: words = [line]
+
+    if ' ' in true_line: original_words = true_line.rstrip().split(' ')
+    else: original_words = [true_line]
+
+    priorOption = words[len(words) - 3] if len(words) > 2 else None
+
+    current_key = []
+    for i in range(0, len(words)):
+        if i < len(globs.__SHELL_PATH__): continue
+
+        try:
+            if deep_get(COMPLETION_TREE, *words[:len(words) - i]):
+                if len(original_words) > 2: 
+                    current_key = words[:(len(words) - (i - 1)) + len(globs.__SHELL_PATH__)]
+                elif '--' in words: current_key = words[:len(words) - i] 
+                else:
+                    current_key = words[:len(words) - (i - 1)]
+                    if deep_get(COMPLETION_TREE, *current_key): break
+
+            elif priorOption and '--' in priorOption:
+                current_key = words[:len(words) - (i + 1)]
+                if deep_get(COMPLETION_TREE, *current_key):  break
+
+            else:
+                key = words[:len(words) - (i + 1)]
+                if deep_get(COMPLETION_TREE, *key):
+                    current_key = key
+                    break
+        except Exception as e: break
+
+    obj = deep_get(COMPLETION_TREE, *current_key)
+
+    def get_option(name: str):
+        if len(obj['_options']):
+            try: return [x for x in obj['_options'] if x[0] == name][0][1]
+            except IndexError: pass
+        return None
+
+    option = get_option(parsed_word)
+    if not option: yield (match.start(), Name.InvalidCommand, parsed_word)
+    else: yield (match.start(), Name.Tag, parsed_word)
+
+
 def command_lexer(lexer, match):
     parsed_word = match.group(1)
     
@@ -96,6 +152,7 @@ def command_lexer(lexer, match):
                         ret += 2
                         if HasKey('nargs', option) and option.nargs > 1:
                             ret += (option.nargs - 1)
+                    else: ret += 1
             return ret
 
         def AnalyzeArgs():
@@ -164,7 +221,6 @@ def command_lexer(lexer, match):
 
         nargs = words_len
         nargs -= AnalyzeOptions()
-        # nargs -= AnalyzeArgs()
         nargs_count = nargs - AnalyzeArgs()
         narg_map = getNargMap()
         narg_count_map = getNargCountMap()
@@ -181,6 +237,15 @@ def command_lexer(lexer, match):
 
                     validArg = False
 
+                    def get_option_args():
+                        ret = []
+                        for arg in reversed(parsed_line.rstrip().split(' ')):
+                            if arg == true_option_name: break
+                            ret.append(arg)
+                        return ret
+
+                    option_args = get_option_args()
+
                     if not '.Tuple object' in str(option.type):
                         # Standard Option Parameter
                         if option.type.name == 'choice': 
@@ -195,14 +260,6 @@ def command_lexer(lexer, match):
                     else:
                         # Click Tuple Type Option
 
-                        def get_option_args():
-                            ret = []
-                            for arg in reversed(parsed_line.rstrip().split(' ')):
-                                if arg == true_option_name: break
-                                ret.append(arg)
-                            return ret
-
-                        option_args = get_option_args()
                         if len(option_args) > option.nargs: 
                             if len(obj['_arguments']) and (nargs_count - 1 < len(obj['_arguments'])): validArg = True
                             if not validArg: return Name.InvalidCommand
@@ -223,14 +280,16 @@ def command_lexer(lexer, match):
 
 
                     # Verified Option Parameter
+                    isOptArg = bool(len(option_args) <= option.nargs)
                     if not validArg:
                         if isChoice and word in values: return Name.Attribute
-                        elif isChoice: return Name.InvalidCommand
+                        elif isChoice and isOptArg: 
+                            return Name.InvalidCommand
 
                         elif isBool and word in values: return Keyword
-                        elif isBool: return Name.InvalidCommand
+                        elif isBool and isOptArg: return Name.InvalidCommand
 
-                        else: return Text
+                        elif isOptArg: return Text
 
 
         if len(obj['_arguments']):
@@ -345,7 +404,7 @@ class ShellLexer(RegexLexer):
             # Options
             (r"--(?<=\s--)help+(?=\s|$)", Name.Help),
             (r"-(?<=\s-)h+(?=\s|$)", Name.Help),
-            (r"--(?<=\s--)[a-zA-Z0-9]+(?=\s|$)", Name.Tag),
+            (r"--(?<=\s--)[a-zA-Z0-9]+(?=\s|$)", option_lexer),
 
             # Commands, Groups, and Parameters
             (r"(?<=^)*(((?<=\s)|^)(?:\-\-|(\w*[a-zA-Z0-9_\-][a-zA-Z0-9_\-]*)($|\s+)))", command_lexer),

@@ -16,9 +16,8 @@ from click.decorators import pass_obj
 from click.decorators import password_option
 from click.decorators import version_option
 
-from click.core import echo
-
-from click.core import Context
+from click.core import echo, Context
+from click.termui import secho
 
 # Namespace Exports
 
@@ -49,4 +48,4 @@ from .decorators import (
 )
 
 
-__version__ = '0.1.3'
+__version__ = '0.2.1'
