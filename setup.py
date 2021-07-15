@@ -7,7 +7,7 @@ except: long_description = ""
 
 setup(
     name='pcshell', 
-    version='0.2.1',
+    version='0.2.2',
     author='Chase M. Allen',
     description="Easily create robust Shell applications in Python with this extension for Click & Prompt-Toolkit; built with Windows OS in mind.",
     long_description=long_description,
