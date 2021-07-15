@@ -33,7 +33,7 @@ If you do not care about mouse support, be sure to set `mouse_support=False` whe
 
 `Pcshell` requires the following modules:
 
- - click
+ - click==7.1.2
  - colorama
 
 And, then **either**:
@@ -48,6 +48,7 @@ And, then **either**:
 `Pcshell` uses Prompt Toolkit to provide Click autocompletion, lexing, and more- but it is not required. If you do not need want these features, then only `pyreadline` is required, and your Shell Application will function with these features simply absent.
 
 Prompt Toolkit v.2.0.10 is specifically required at this time due to incompatibilities with the Windows Terminal in the latest version. This may change in the future.
+Click v.7.1.2 is specifically required at this time due to breaking changes in >v.8.x.x
 
 At this time, the [PyPi package](https://pypi.org/project/pcshell/) for `pcshell` requires all of these listed modules as dependencies to make for easier testing of the package, as most of the core features rely on Prompt Toolkit. If you are a minimalist, you can go ahead and uninstall what you don't need or disable the features when initializing your shell.
 
