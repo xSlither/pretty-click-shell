@@ -197,7 +197,9 @@ def test2(date, dev):
 @pcshell.argument('test2', type=int, help='An int argument')
 @pcshell.argument('test3', type=float, help='A float argument')
 @pcshell.option('--opt1', type=pcshell.types.Choice(['blue', 'red'], display_tags=['ansiblue', 'style fg="#dc322f"']), help="Some option for this command")
-def test(test, test2, test3, opt1):
+@pcshell.option('--opt2', type=str, help='Some string option', default='test')
+@pcshell.add_options(option_useDevRegion)
+def test(test, test2, test3, opt1, opt2, dev):
     """Some Other Api Command"""
     if IsShell: click.echo('Provided Parameter of "{}"'.format(opt1))
     return { 'someProp': opt1 }
@@ -246,7 +248,7 @@ def test_click_tuple(test, t):
         click.echo('\n\tProvided Argument: %s' % test)
     return t
 
-@multi.command(['tuple_args', 'tuparg'], context_settings=CONTEXT_SETTINGS, no_args_is_help=False)
+@multi.command(['tuple_args', 'tuparg'], context_settings=CONTEXT_SETTINGS, no_args_is_help=True)
 @pcshell.option('--t', default=[], literal_tuple_type=[bool, bool], help='A typed tuple option')
 @pcshell.argument('test', type=(tuple_test_choice, bool), help='A click tuple type argument')
 @pcshell.argument('test2', type=float, help='A float argument')
